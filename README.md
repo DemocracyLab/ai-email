@@ -124,10 +124,55 @@ See [SECURITY.md](SECURITY.md) for detailed security architecture.
   - `components/EmailTab.tsx` - Email generation and sending
   - `services/llm.ts` - LLM API integration (Gemini/OpenAI)
 
-## How It Works
+## Installation & Setup
 
-### 1. Configure (Config Tab)
+### For End Users (Download & Run)
 
+1. **Download the app**:
+   - Go to the **Releases** page: [https://github.com/democracy-lab/ai-mail/releases](https://github.com/democracy-lab/ai-mail/releases)
+   - Look for the latest release (e.g., `v1.0.0`).
+   - Download the `ai-mail-setup-X.X.X.exe` (NSIS Installer) or `ai-mail-portable-X.X.X.exe` (Run without installing).
+
+2. **First-time setup**:
+   - Launch the app. The "Smart Navigation" will guide you through the initial configuration:
+     - **User Info**: Enter your name and work email.
+     - **Google Account**: Sign in with your work account (OAuth).
+     - **Google Sheet**: Paste the link to your contact spreadsheet.
+     - **LLM**: Select your preferred AI model (Gemini/OpenAI).
+
+3. **Secure API Access**:
+   The app uses Google Cloud Secret Manager to fetch the shared API key. Ensure your Google account has been granted the `Secret Manager Secret Accessor` role in the GCP project.
+
+### For Developers (Local Build)
+
+1.  **Clone the repository**:
+    ```bash
+    git clone https://github.com/democracy-lab/ai-mail.git
+    cd ai-mail
+    ```
+
+2.  **Install dependencies**:
+    ```bash
+    npm install
+    ```
+
+3.  **Environment Setup**:
+    - Copy `.env.example` to `.env`.
+    - Configure `GCP_PROJECT_ID=ai-mail-app-486520`.
+    - Follow [OAUTH_SETUP.md](OAUTH_SETUP.md) for Google credentials.
+
+4.  **Run in Development**:
+    ```bash
+    npm run dev
+    ```
+
+5.  **Build for Production**:
+    - On Windows, enable **Developer Mode** in settings to allow symbolic links.
+    - Run: `npm run electron:build`.
+
+## Usage Guide (Email Workflow)
+
+### 1. Configure Settings (Config Tab)
 The app validates and auto-saves all settings:
 
 - **User Information**: Name and Gmail address (validates email format)
