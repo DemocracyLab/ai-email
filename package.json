@@ -19,6 +19,10 @@
     "ai",
     "email"
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/democracy-lab/ai-mail.git"
+  },
   "author": "",
   "license": "MIT",
   "dependencies": {
@@ -53,6 +57,13 @@
   "build": {
     "appId": "com.democracylab.aimail",
     "productName": "AI Mail",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "democracy-lab",
+        "repo": "ai-mail"
+      }
+    ],
     "directories": {
       "output": "release"
     },
@@ -62,7 +73,8 @@
     ],
     "win": {
       "target": [
-        "nsis"
+        "nsis",
+        "portable"
       ]
     }
   }
