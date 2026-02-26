@@ -4,39 +4,76 @@ AI-powered email personalization tool with Gmail and Google Sheets integration f
 
 ## Features
 
-- **Google Workspace Integration**: OAuth-based authentication for secure access
+- **Google Cloud Secret Manager**: Centralized LLM API key management for team-wide use
+- **Google Workspace Integration**: OAuth-based authentication for Gmail and Sheets APIs
 - **Internal Use Only**: Configured for your organization's workspace members
-- **Config Tab**: Connect Google account, configure sheets, and LLM settings
+- **Smart Navigation**: Auto-opens the right tab based on setup completion
+- **Auto-Save Configuration**: All settings save automatically on blur
+- **Config Tab**: Connect Google account, configure sheets, and select LLM model
 - **Context Tab**: Create and edit email templates with variable placeholders
 - **Email Tab**: Generate personalized emails, send to contacts, and track status
 - **Privacy Protected**: Contact data never sent to AI - only your template
+- **Persistent Storage**: Configuration and model selections saved across restarts
 
 ## Quick Start
 
 ### For Admins/Developers (One-Time Setup)
 
-See **[OAUTH_SETUP.md](OAUTH_SETUP.md)** for complete Google Cloud Console configuration.
+**Prerequisites:**
+1. Google Workspace organization
+2. Google Cloud Project with billing enabled
+3. Admin access to configure OAuth and Secret Manager
 
-**Summary:**
-1. Create Google Cloud Project
-2. Enable Gmail API and Google Sheets API
-3. Configure OAuth consent screen as "Internal"
-4. Create OAuth credentials
-5. Add credentials to `.env` file
-6. Build and distribute app
+**Setup Steps:**
+
+1. **OAuth Configuration** - See [OAUTH_SETUP.md](OAUTH_SETUP.md)
+   - Create Google Cloud Project
+   - Enable Gmail API, Google Sheets API, and Secret Manager API
+   - Configure OAuth consent screen as "Internal"
+   - Create OAuth credentials
+   - Add credentials to `.env` file
+
+2. **Secret Manager Setup** - See [SECRET_MANAGER_SETUP.md](SECRET_MANAGER_SETUP.md)
+   - Create secret `llm-api-key` in Secret Manager
+   - Store your Gemini API key (or OpenAI key)
+   - Grant IAM permissions to users
+   - Update `GCP_PROJECT_ID` in `.env`
+
+3. **Build and Distribute**
+   ```bash
+   npm install
+   npm run electron:build
+   ```
+   - Distribute the packaged app to team members
+   - Users will authenticate via OAuth on first run
 
 ### For End Users
 
 Once the app is set up by your admin:
 
-1. Open the app and go to Configuration tab
-2. Click "Connect Google Account" and authorize in browser
-3. Enter your Google Sheet ID and tab name
-4. Add your LLM API key (Gemini or OpenAI)
-5. Create email template in Context tab
-6. Start sending personalized emails!
+1. **Launch the app** - It will open on the Configuration tab
+2. **Connect Google Account**:
+   - Click "Connect Google Account"
+   - Authorize in your browser
+   - Grant permissions for Gmail, Sheets, and Secret Manager
+3. **Configure Integration**:
+   - Enter your name and Gmail address (auto-saves on blur)
+   - Paste your Google Sheet URL
+   - Test the sheet connection
+4. **Select LLM Model**:
+   - Click "Fetch Models" to load available Gemini models
+   - Select your preferred model (e.g., gemini-1.5-flash)
+   - Settings save automatically
+5. **Create Template** - Navigate to Context tab
+   - Write your email template
+   - Use `{{firstName}}` and `{{lastName}}` placeholders
+6. **Send Emails** - Navigate to Email tab
+   - Generate personalized emails with AI
+   - Review, edit, and send
 
-See **[USER_GUIDE.md](USER_GUIDE.md)** for detailed instructions.
+The app will remember your settings and automatically open the Email tab on next launch.
+
+See [USER_SETUP_GUIDE.md](USER_SETUP_GUIDE.md) for detailed instructions and troubleshooting.
 
 ### For Developers
 
@@ -44,8 +81,10 @@ See **[USER_GUIDE.md](USER_GUIDE.md)** for detailed instructions.
 # Copy environment template
 cp .env.example .env
 
-# Add your OAuth credentials to .env
-# See OAUTH_SETUP.md for how to get these
+# Add your OAuth credentials and GCP project ID to .env:
+GOOGLE_CLIENT_ID=your-client-id
+GOOGLE_CLIENT_SECRET=your-client-secret
+GCP_PROJECT_ID=your-project-id
 
 # Install dependencies
 npm install
@@ -57,104 +96,193 @@ npm run electron:dev
 npm run electron:build
 ```
 
-## Setup
+## Architecture
 
-### 1. Install Dependencies
+### Security Model
 
-```bash
-npm install
-```
+- **OAuth 2.0**: All Google API access via user's OAuth tokens
+- **Secret Manager**: LLM API key stored centrally, fetched per-request
+- **Encrypted Storage**: Configuration stored using electron-store encryption
+- **Content Security Policy**: Strict CSP in production, relaxed for HMR in dev
+- **Context Isolation**: Electron security best practices enabled
 
-### 2. User Configuration
+See [SECURITY.md](SECURITY.md) for detailed security architecture.
 
-Users configure everything through the app interface:
-- Gmail address and app password
-- Google Sheet share URL  
-- LLM provider and API key
-- Email templates
+### Key Components
 
-No developer setup required!
+- **Main Process** (`src/main/`):
+  - `index.ts` - Electron app lifecycle and window management
+  - `gmail.ts` - Gmail API OAuth and email sending
+  - `sheets.ts` - Google Sheets API integration
+  - `secrets.ts` - Secret Manager API client
+  - `preload.ts` - Secure IPC bridge
 
-## Usage
-
-### Development Mode
-
-```bash
-npm run electron:dev
-```
-
-This starts Vite dev server and Electron in development mode.
-
-### Build for Production
-
-```bash
-npm run electron:build
-```
-
-This creates a distributable app in the `release` folder.
+- **Renderer Process** (`src/renderer/`):
+  - `App.tsx` - Main app with smart tab navigation
+  - `components/ConfigTab.tsx` - Auto-save configuration UI
+  - `components/ContextTab.tsx` - Template editor
+  - `components/EmailTab.tsx` - Email generation and sending
+  - `services/llm.ts` - LLM API integration (Gemini/OpenAI)
 
 ## How It Works
 
-### 1. Configure (Config Tab):
-- Enter your Gmail address
-- Get Gmail App Password from Google (requires 2FA)
-- Share your Google Sheet publicly
-- Add LLM API key (Gemini or OpenAI)
-- Set subject line template and signature
+### 1. Configure (Config Tab)
 
-### 2. Create Template (Context Tab):
-- Write your email template
-- Use `{{firstName}}` and `{{lastName}}` for personalization
-- Template auto-saves
+The app validates and auto-saves all settings:
 
-### 3. Send Emails (Email Tab):
-- Generate personalized email with AI
-- Review and edit
-- Send test to yourself
-- Send to contact
-- Manually update Google Sheet
+- **User Information**: Name and Gmail address (validates email format)
+- **Google Account**: OAuth connection with test button
+- **Google Sheets**: 
+  - Paste full spreadsheet URL (auto-extracts ID)
+  - Specify sheet tab name
+  - Validates required columns
+- **LLM Configuration**:
+  - Fetch available models from API
+  - Select model (saves with cached model list)
+  - API key managed centrally via Secret Manager
+
+Status messages appear inline with each section showing success/error feedback.
+
+### 2. Create Template (Context Tab)
+
+- Write your email template in the rich text editor
+- Use placeholders: `{{firstName}}`, `{{lastName}}`
+- Template auto-saves as you type
+- Placeholders replaced locally after AI generation
+
+**Important**: Only the template is sent to the LLM. Contact names are filled in afterwards, preserving privacy.
+
+### 3. Send Emails (Email Tab)
+
+1. **Load Contacts**: Fetches from Google Sheets via API
+2. **Generate Email**: 
+   - Sends template to LLM
+   - LLM creates personalized email structure
+   - Placeholders replaced with contact info
+3. **Review & Edit**: Full rich-text editing before sending
+4. **Send**:
+   - Test button sends to yourself
+   - Send button uses Gmail API
+   - Updates sheet with status and Gmail Message ID
+5. **Navigate**: Previous/Next buttons to process multiple contacts
 
 ## Google Sheet Structure
 
-Required columns (A-D):
-- **Email Address** (Column A)
-- **First Name** (Column B)
-- **Last Name** (Column C)
-- **Team Member** (Column D) - Mark with your name after sending
+**Required columns:**
+- `Email Address` - Contact's email
+- `First Name` - For {{firstName}} placeholder
+- `Last Name` - For {{lastName}} placeholder
 
-## Privacy & Security
+**Optional columns** (auto-created if missing):
+- `Team Member` - Who sent the email (your name)
+- `Status` - sent/skipped/error
+- `Date Sent` - Timestamp
+- `Gmail Message ID` - For tracking
 
-- **Contact data is NOT sent to LLM**: Only template sent to AI
-- **Variables replaced locally**: Names filled in after generation
-- **App passwords**: More secure than account password
-- **Read-only sheet access**: App only reads contacts
+The app validates column presence and shows clear error messages if sheet structure is incorrect.
 
 ## Multi-User Support
 
-Multiple team members can use different instances of the app on the same Google Sheet:
-- Each person manually updates "Team Member" column after sending
-- App skips contacts where "Team Member" is filled
-- Simple coordination without conflicts
+Multiple team members can use the app simultaneously:
+
+- Each person authenticates with their own Google account
+- Shared LLM API key accessed via Secret Manager (requires IAM permission)
+- App updates "Team Member" column after sending
+- Contacts with filled "Team Member" column are skipped
+- No conflicts or overwrites between users
 
 ## Tech Stack
 
-- **Electron**: Desktop application framework
-- **React**: UI framework
-- **TypeScript**: Type safety
-- **Vite**: Fast build tool
-- **Tailwind CSS**: Styling
-- **react-quill**: Rich text editor
-- **nodemailer**: Gmail SMTP email sending
-- **electron-store**: Secure config storage
+### Core
+- **Electron** - Desktop application framework
+- **React 18** - UI framework
+- **TypeScript** - Type safety throughout
+- **Vite** - Fast build tool with HMR
+
+### UI & Styling
+- **Tailwind CSS** - Utility-first styling
+- **react-quill** - Rich text email editor
+
+### Google Integration
+- **googleapis** - Gmail and Sheets API clients
+- **google-auth-library** - OAuth 2.0 authentication
+- **@google-cloud/secret-manager** - Centralized API key storage
+
+### Storage & Security
+- **electron-store** - Encrypted local configuration
+- **Content Security Policy** - XSS protection
+
+## Development
+
+### Environment Variables
+
+Required in `.env`:
+```env
+GOOGLE_CLIENT_ID=xxx.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=GOCSPX-xxx
+GCP_PROJECT_ID=your-gcp-project
+```
+
+### OAuth Scopes
+
+The app requests these scopes:
+- `https://www.googleapis.com/auth/gmail.send` - Send emails
+- `https://www.googleapis.com/auth/gmail.readonly` - Test connection
+- `https://www.googleapis.com/auth/spreadsheets` - Read/write sheets
+- `https://www.googleapis.com/auth/cloud-platform` - Access Secret Manager
+
+### CSP Configuration
+
+- **Development**: Relaxed CSP allows `unsafe-eval` for Vite HMR
+- **Production**: Strict CSP with no eval, whitelisted API domains
+- See [SECURITY.md](SECURITY.md) for details
 
 ## Troubleshooting
 
-See [USER_SETUP_GUIDE.md](USER_SETUP_GUIDE.md) for detailed troubleshooting steps.
+### Configuration Issues
 
-**Common issues:**
-- Gmail connection failed → Check app password
-- Sheet connection failed → Verify sheet is publicly shared
-- No contacts found → Check "Team Member" column is empty for unsent
+**Google Account won't connect**
+- Check OAuth credentials in `.env`
+- Verify OAuth consent screen is set to "Internal"
+- Ensure user is part of your Google Workspace
+
+**Can't access Secret Manager**
+- Verify user has "Secret Manager Secret Accessor" IAM role
+- Check secret name is exactly `llm-api-key`
+- Confirm `GCP_PROJECT_ID` matches your GCP project
+
+**Sheet validation fails**
+- Required columns must be exact: `Email Address`, `First Name`, `Last Name`
+- Column headers must be in the first row
+- Verify user's Google account has edit access to sheet
+
+**Model fetch fails**
+- Ensure Secret Manager connection works
+- Check API key in Secret Manager is valid
+- Try disconnecting and reconnecting Google account
+
+### Email Generation Issues
+
+**LLM errors**
+- Verify model is selected in Configuration
+- Check API key in Secret Manager is valid
+- For Gemini: ensure model name format is correct (e.g., `gemini-1.5-flash`)
+
+**List formatting problems**
+- LLM uses single newlines for list items
+- Double newlines create paragraph breaks
+- Check generated email preview before sending
+
+See [USER_SETUP_GUIDE.md](USER_SETUP_GUIDE.md) for more troubleshooting steps.
+
+## Documentation Files
+
+- **[README.md](README.md)** - This file, overview and quick start
+- **[OAUTH_SETUP.md](OAUTH_SETUP.md)** - Complete OAuth configuration guide
+- **[SECRET_MANAGER_SETUP.md](SECRET_MANAGER_SETUP.md)** - Secret Manager setup instructions
+- **[SECURITY.md](SECURITY.md)** - Security architecture and CSP details
+- **[USER_SETUP_GUIDE.md](USER_SETUP_GUIDE.md)** - End-user setup and troubleshooting
+- **[spec.md](spec.md)** - Technical specification and architecture
 
 ## License
 
