@@ -49,8 +49,14 @@ const EmailTab: React.FC = () => {
     setSubject(subjectLine);
     
     // Convert plain text to HTML paragraphs for ReactQuill
+    // Split by double newlines to get paragraphs
     const paragraphs = bodyText.split(/\n\n+/).filter(p => p.trim());
-    const htmlParagraphs = paragraphs.map(p => `<p>${p.trim()}</p>`).join('\n');
+    
+    // Within each paragraph, convert single newlines to <br> tags for line breaks
+    const htmlParagraphs = paragraphs.map(p => {
+      const withBreaks = p.trim().replace(/\n/g, '<br>');
+      return `<p>${withBreaks}</p>`;
+    }).join('\n');
     
     setBody(htmlParagraphs);
   };
@@ -71,31 +77,23 @@ const EmailTab: React.FC = () => {
       return;
     }
 
-    console.log('=== EMAIL GENERATION START ===');
-    console.log('Context content length:', config.context.content.length);
-    console.log('Context content:', config.context.content);
-    console.log('LLM config:', { provider: config.llm.provider, model: config.llm.model });
-
     setIsGenerating(true);
     setStatus({ type: 'info', message: 'Generating email...' });
 
     try {
       const generatedText = await generateEmail(config.context.content, config.llm);
-      console.log('Generated text:', generatedText);
       
       // Store the template for reuse
       setGeneratedTemplate(generatedText);
       
       const contact = contacts[currentIndex];
-      console.log('Current contact:', contact);
       
       // Apply template to current contact
       applyTemplateToContact(generatedText, contact);
       
       setStatus({ type: 'success', message: 'Email generated successfully' });
     } catch (error: any) {
-      console.log('=== EMAIL GENERATION ERROR ===');
-      console.log('Error:', error);
+      console.error('Email generation error:', error);
       setStatus({ type: 'error', message: `Generation failed: ${error.message}` });
     } finally {
       setIsGenerating(false);

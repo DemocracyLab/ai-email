@@ -24,6 +24,7 @@ export interface AppConfig {
     provider: 'gemini' | 'openai';
     apiKey?: string; // Optional - fetched from Secret Manager
     model: string;
+    availableModels?: string[]; // Cached list of available models
   };
   context: {
     lastFilePath?: string;
@@ -44,4 +45,5 @@ export interface LLMConfig {
   provider: LLMProvider;
   apiKey?: string; // Optional - fetched from Secret Manager
   model: string;
+  availableModels?: string[]; // Cached list of available models
 }

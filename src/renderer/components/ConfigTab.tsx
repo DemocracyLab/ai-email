@@ -10,7 +10,10 @@ const ConfigTab: React.FC = () => {
   const [sheetName, setSheetName] = useState(config?.google?.sheetName || 'Sheet1');
   const [llmProvider, setLlmProvider] = useState<'gemini' | 'openai'>(config?.llm.provider || 'gemini');
   const [llmModel, setLlmModel] = useState(config?.llm.model || '');
-  const [status, setStatus] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
+  const [userStatus, setUserStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [googleStatus, setGoogleStatus] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
+  const [sheetStatus, setSheetStatus] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
+  const [llmStatus, setLlmStatus] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
   const [isGoogleConnected, setIsGoogleConnected] = useState(!!config?.google?.refreshToken);
   const [isConnecting, setIsConnecting] = useState(false);
   const [showAuthCodeInput, setShowAuthCodeInput] = useState(false);
@@ -26,6 +29,7 @@ const ConfigTab: React.FC = () => {
       setSheetName(config.google?.sheetName || 'Sheet1');
       setLlmProvider(config.llm.provider);
       setLlmModel(config.llm.model);
+      setAvailableModels(config.llm.availableModels || []);
       setIsGoogleConnected(!!config.google?.refreshToken);
     }
   }, [config]);
@@ -43,96 +47,145 @@ const ConfigTab: React.FC = () => {
     return match ? match[1] : null;
   };
 
-  const handleSave = async () => {
+  const saveUserConfig = async () => {
     if (!userName || !userEmail) {
-      setStatus({ type: 'error', message: 'Name and email are required' });
+      setUserStatus({ type: 'error', message: 'Name and email are required' });
       return;
     }
 
     if (!validateEmail(userEmail)) {
-      setStatus({ type: 'error', message: 'Invalid email address' });
+      setUserStatus({ type: 'error', message: 'Invalid email address' });
       return;
-    }
-
-    if (!llmModel) {
-      setStatus({ type: 'error', message: 'Please select a model' });
-      return;
-    }
-
-    // Extract sheet ID from URL if provided
-    let sheetId: string | undefined = undefined;
-    if (sheetUrl) {
-      const extractedId = extractSheetId(sheetUrl);
-      if (!extractedId) {
-        setStatus({ type: 'error', message: 'Invalid Google Sheets URL. Please paste the full URL from your browser.' });
-        return;
-      }
-      sheetId = extractedId;
     }
 
     try {
       const configUpdate: any = {
         user: { name: userName, email: userEmail },
-        llm: {
-          provider: llmProvider,
-          model: llmModel
-        }
+        llm: config?.llm || { provider: 'gemini', model: '' }
       };
 
-      // Only update google config if we have valid data
-      if (sheetId && config?.google?.refreshToken) {
-        configUpdate.google = {
-          sheetId,
-          sheetUrl,
-          sheetName,
-          refreshToken: config.google.refreshToken
-        };
-      } else if (config?.google?.refreshToken) {
-        // Preserve existing google config if connected but no sheet configured
+      if (config?.google?.refreshToken) {
         configUpdate.google = config.google;
       }
 
       await updateConfig(configUpdate);
-      setStatus({ type: 'success', message: 'Configuration saved successfully' });
+      setUserStatus({ type: 'success', message: 'Saved' });
     } catch (error: any) {
-      setStatus({ type: 'error', message: error.message });
+      setUserStatus({ type: 'error', message: error.message });
     }
   };
+
+  const saveSheetConfig = async () => {
+    if (!sheetUrl) {
+      // Clear sheet config if URL is empty
+      if (config?.google?.refreshToken) {
+        try {
+          await updateConfig({
+            user: config.user,
+            llm: config.llm,
+            google: {
+              refreshToken: config.google.refreshToken,
+              sheetId: '',
+              sheetUrl: '',
+              sheetName: 'Sheet1'
+            }
+          });
+        } catch (error: any) {
+          setSheetStatus({ type: 'error', message: error.message });
+        }
+      }
+      return;
+    }
+
+    const extractedId = extractSheetId(sheetUrl);
+    if (!extractedId) {
+      setSheetStatus({ type: 'error', message: 'Invalid Sheet URL' });
+      return;
+    }
+
+    if (!config?.google?.refreshToken) {
+      setSheetStatus({ type: 'error', message: 'Connect Google account first' });
+      return;
+    }
+
+    try {
+      await updateConfig({
+        user: config.user,
+        llm: config.llm,
+        google: {
+          sheetId: extractedId,
+          sheetUrl,
+          sheetName,
+          refreshToken: config.google.refreshToken
+        }
+      });
+      setSheetStatus({ type: 'success', message: 'Saved' });
+    } catch (error: any) {
+      setSheetStatus({ type: 'error', message: error.message });
+    }
+  };
+
+  const saveLLMConfig = async () => {
+    try {
+      const configUpdate: any = {
+        user: config?.user || { name: '', email: '' },
+        llm: {
+          provider: llmProvider,
+          model: llmModel || '',
+          availableModels: availableModels.length > 0 ? availableModels : undefined
+        }
+      };
+
+      if (config?.google?.refreshToken) {
+        configUpdate.google = config.google;
+      }
+
+      await updateConfig(configUpdate);
+      
+      // Only show success message if a model was selected
+      if (llmModel) {
+        setLlmStatus({ type: 'success', message: 'Saved' });
+      }
+    } catch (error: any) {
+      setLlmStatus({ type: 'error', message: error.message });
+    }
+  };
+
+
 
   const handleConnectGoogle = async () => {
     try {
       // Debug: Check if electronAPI is available
       if (!window.electronAPI) {
-        setStatus({ type: 'error', message: 'electronAPI is not available. Please restart the app.' });
+        setGoogleStatus({ type: 'error', message: 'electronAPI is not available. Please restart the app.' });
         console.error('window.electronAPI is undefined');
         return;
       }
       
       if (!window.electronAPI.authorizeGmail) {
-        setStatus({ type: 'error', message: 'authorizeGmail method is not available' });
+        setGoogleStatus({ type: 'error', message: 'authorizeGmail method is not available' });
         console.error('window.electronAPI.authorizeGmail is undefined');
-        console.log('Available methods:', Object.keys(window.electronAPI));
         return;
       }
       
       setIsConnecting(true);
-      setStatus({ type: 'success', message: 'Opening browser for Google authorization...' });
+      setGoogleStatus({ type: 'info', message: 'Opening browser for Google authorization...' });
       
       // This will open the browser and automatically handle the OAuth callback
       const result = await window.electronAPI.authorizeGmail();
       
       if (result.success) {
         setIsGoogleConnected(true);
-        setStatus({ type: 'success', message: 'Google account connected successfully!' });
+        setGoogleStatus({ type: 'success', message: 'Google account connected successfully!' });
         
         // Reload config to get the refresh token
         const newConfig = await window.electronAPI.getConfig();
         await updateConfig(newConfig);
       } else {
-        setStatus({ type: 'error', message: result.error || 'Authorization failed' });
+        setGoogleStatus({ type: 'error', message: result.error || 'Authorization failed' });
       }
     } catch (error: any) {
-      setStatus({ type: 'error', message: error.message });
+      setGoogleStatus({ type: 'error', message: error.message });
     } finally {
       setIsConnecting(false);
       setShowAuthCodeInput(false);
@@ -141,27 +194,27 @@ const ConfigTab: React.FC = () => {
 
   const handleSaveAuthCode = async () => {
     if (!authCode) {
-      setStatus({ type: 'error', message: 'Please enter the authorization code' });
+      setGoogleStatus({ type: 'error', message: 'Please enter the authorization code' });
       return;
     }
 
     try {
-      setStatus({ type: 'success', message: 'Saving authorization...' });
+      setGoogleStatus({ type: 'info', message: 'Saving authorization...' });
       const success = await window.electronAPI.saveGmailTokens(authCode);
       
       if (success) {
         setIsGoogleConnected(true);
         setAuthCode('');
-        setStatus({ type: 'success', message: 'Google account connected successfully!' });
+        setGoogleStatus({ type: 'success', message: 'Google account connected successfully!' });
         
         // Reload config to get the refresh token
         const newConfig = await window.electronAPI.getConfig();
         await updateConfig(newConfig);
       } else {
-        setStatus({ type: 'error', message: 'Failed to save authorization. Please try again.' });
+        setGoogleStatus({ type: 'error', message: 'Failed to save authorization. Please try again.' });
       }
     } catch (error: any) {
-      setStatus({ type: 'error', message: error.message });
+      setGoogleStatus({ type: 'error', message: error.message });
     }
   };
 
@@ -179,20 +232,21 @@ const ConfigTab: React.FC = () => {
           refreshToken: ''
         }
       });
-      setStatus({ type: 'success', message: 'Google account disconnected' });
+      setGoogleStatus({ type: 'success', message: 'Google account disconnected' });
     } catch (error: any) {
-      setStatus({ type: 'error', message: error.message });
+      setGoogleStatus({ type: 'error', message: error.message });
     }
   };
 
   const handleFetchModels = async () => {
     if (!isGoogleConnected) {
-      setStatus({ type: 'error', message: 'Please connect your Google account first' });
+      setLlmStatus({ type: 'error', message: 'Please connect your Google account first' });
       return;
     }
 
     try {
       setFetchingModels(true);
+      setLlmStatus({ type: 'info', message: 'Fetching models...' });
       
       // Fetch API key from Secret Manager
       const apiKey = await window.electronAPI.getLLMApiKey();
@@ -211,9 +265,28 @@ const ConfigTab: React.FC = () => {
         .map((m: any) => m.name.replace('models/', ''));
       
       setAvailableModels(models);
-      setStatus({ type: 'success', message: `Found ${models.length} models` });
+      
+      // Save the fetched models to config
+      try {
+        const configUpdate: any = {
+          user: config?.user || { name: '', email: '' },
+          llm: {
+            provider: llmProvider,
+            model: llmModel || '',
+            availableModels: models
+          }
+        };
+        if (config?.google?.refreshToken) {
+          configUpdate.google = config.google;
+        }
+        await updateConfig(configUpdate);
+      } catch (error: any) {
+        console.error('Failed to save models to config:', error);
+      }
+      
+      setLlmStatus({ type: 'success', message: `Found ${models.length} models` });
     } catch (error: any) {
-      setStatus({ type: 'error', message: `Failed to fetch models: ${error.message}` });
+      setLlmStatus({ type: 'error', message: `Failed to fetch models: ${error.message}` });
     } finally {
       setFetchingModels(false);
     }
@@ -224,60 +297,50 @@ const ConfigTab: React.FC = () => {
       const gmailOk = await window.electronAPI.testGmailConnection();
       
       if (!gmailOk) {
-        setStatus({ type: 'error', message: 'Gmail connection failed. Try reconnecting your account.' });
+        setGoogleStatus({ type: 'error', message: 'Gmail connection failed. Try reconnecting your account.' });
         setIsGoogleConnected(false);
         return;
       }
       
-      setStatus({ type: 'success', message: 'Gmail connection successful!' });
+      setGoogleStatus({ type: 'success', message: 'Gmail connection successful!' });
     } catch (error: any) {
-      setStatus({ type: 'error', message: error.message });
+      setGoogleStatus({ type: 'error', message: error.message });
     }
   };
 
   const handleTestSheet = async () => {
     try {
       if (!sheetUrl) {
-        setStatus({ type: 'error', message: 'Please enter a Sheet URL first' });
+        setSheetStatus({ type: 'error', message: 'Please enter a Sheet URL first' });
         return;
       }
 
       const sheetId = extractSheetId(sheetUrl);
       if (!sheetId) {
-        setStatus({ type: 'error', message: 'Invalid Sheet URL. Please paste the full URL from your browser.' });
+        setSheetStatus({ type: 'error', message: 'Invalid Sheet URL. Please paste the full URL from your browser.' });
         return;
       }
 
-      setStatus({ type: 'info', message: 'Testing sheet connection and validating columns...' });
+      setSheetStatus({ type: 'info', message: 'Testing sheet connection and validating columns...' });
 
       // Save the sheet config first so the test can access it
-      await handleSave();
+      await saveSheetConfig();
 
       const result = await window.electronAPI.testSheetsConnection();
       
       if (result.success) {
-        setStatus({ type: 'success', message: 'Sheet validated! All required columns found: Email Address, First Name, Last Name' });
+        setSheetStatus({ type: 'success', message: 'Sheet validated! All required columns found.' });
       } else {
-        setStatus({ type: 'error', message: result.error || 'Sheet validation failed' });
+        setSheetStatus({ type: 'error', message: result.error || 'Sheet validation failed' });
       }
     } catch (error: any) {
-      setStatus({ type: 'error', message: error.message });
+      setSheetStatus({ type: 'error', message: error.message });
     }
   };
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
       <h2 className="text-2xl font-bold mb-6">Configuration</h2>
-
-      {status && (
-        <div className={`mb-4 p-4 rounded ${
-          status.type === 'success' ? 'bg-green-100 text-green-800' : 
-          status.type === 'info' ? 'bg-blue-100 text-blue-800' :
-          'bg-red-100 text-red-800'
-        }`}>
-          {status.message}
-        </div>
-      )}
 
       <div className="space-y-6">
         {/* User Info */}
@@ -290,6 +353,7 @@ const ConfigTab: React.FC = () => {
                 type="text"
                 value={userName}
                 onChange={(e) => setUserName(e.target.value)}
+                onBlur={saveUserConfig}
                 className="w-full px-3 py-2 border rounded"
                 placeholder="John Doe"
               />
@@ -300,10 +364,18 @@ const ConfigTab: React.FC = () => {
                 type="email"
                 value={userEmail}
                 onChange={(e) => setUserEmail(e.target.value)}
+                onBlur={saveUserConfig}
                 className="w-full px-3 py-2 border rounded"
                 placeholder="john@yourdomain.com"
               />
             </div>
+            {userStatus && (
+              <div className={`p-2 rounded text-sm ${
+                userStatus.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+              }`}>
+                {userStatus.message}
+              </div>
+            )}
           </div>
         </section>
 
@@ -324,6 +396,16 @@ const ConfigTab: React.FC = () => {
                   </p>
                 </div>
                 
+                {googleStatus && (
+                  <div className={`p-2 rounded text-sm ${
+                    googleStatus.type === 'success' ? 'bg-green-100 text-green-800' : 
+                    googleStatus.type === 'info' ? 'bg-blue-100 text-blue-800' :
+                    'bg-red-100 text-red-800'
+                  }`}>
+                    {googleStatus.message}
+                  </div>
+                )}
+
                 <button
                   onClick={handleConnectGoogle}
                   disabled={isConnecting}
@@ -368,6 +450,17 @@ const ConfigTab: React.FC = () => {
                   </svg>
                   Google Account Connected
                 </div>
+                
+                {googleStatus && (
+                  <div className={`p-2 rounded text-sm ${
+                    googleStatus.type === 'success' ? 'bg-green-100 text-green-800' : 
+                    googleStatus.type === 'info' ? 'bg-blue-100 text-blue-800' :
+                    'bg-red-100 text-red-800'
+                  }`}>
+                    {googleStatus.message}
+                  </div>
+                )}
+
                 <button
                   onClick={handleTestGoogle}
                   className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
@@ -395,6 +488,7 @@ const ConfigTab: React.FC = () => {
                 type="text"
                 value={sheetUrl}
                 onChange={(e) => setSheetUrl(e.target.value)}
+                onBlur={saveSheetConfig}
                 className="w-full px-3 py-2 border rounded text-sm"
                 placeholder="https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit"
               />
@@ -420,6 +514,7 @@ const ConfigTab: React.FC = () => {
                 type="text"
                 value={sheetName}
                 onChange={(e) => setSheetName(e.target.value)}
+                onBlur={saveSheetConfig}
                 className="w-full px-3 py-2 border rounded"
                 placeholder="Sheet1"
               />
@@ -435,6 +530,17 @@ const ConfigTab: React.FC = () => {
                 <li>Your Google account must have edit access to the sheet</li>
               </ul>
             </div>
+            
+            {sheetStatus && (
+              <div className={`p-2 rounded text-sm ${
+                sheetStatus.type === 'success' ? 'bg-green-100 text-green-800' : 
+                sheetStatus.type === 'info' ? 'bg-blue-100 text-blue-800' :
+                'bg-red-100 text-red-800'
+              }`}>
+                {sheetStatus.message}
+              </div>
+            )}
+
             <button
               onClick={handleTestSheet}
               disabled={!isGoogleConnected || !sheetUrl}
@@ -453,7 +559,14 @@ const ConfigTab: React.FC = () => {
               <label className="block text-sm font-medium mb-1">Provider</label>
               <select
                 value={llmProvider}
-                onChange={(e) => setLlmProvider(e.target.value as 'gemini' | 'openai')}
+                onChange={(e) => {
+                  setLlmProvider(e.target.value as 'gemini' | 'openai');
+                  // Clear model when switching providers
+                  setLlmModel('');
+                  setAvailableModels([]);
+                  // Auto-save immediately when selecting a provider
+                  saveLLMConfig();
+                }}
                 className="w-full px-3 py-2 border rounded"
               >
                 <option value="gemini">Google Gemini</option>
@@ -470,14 +583,26 @@ const ConfigTab: React.FC = () => {
                   <div className="flex gap-2">
                     <select
                       value={llmModel}
-                      onChange={(e) => setLlmModel(e.target.value)}
+                      onChange={(e) => {
+                        setLlmModel(e.target.value);
+                        // Auto-save immediately when selecting a model
+                        saveLLMConfig();
+                      }}
                       className="flex-1 px-3 py-2 border rounded"
                       disabled={fetchingModels}
                     >
                       {fetchingModels ? (
                         <option value="">Loading models...</option>
                       ) : availableModels.length === 0 ? (
-                        <option value="">No models loaded - click Fetch Models</option>
+                        // Show saved model if available, otherwise prompt to fetch
+                        llmModel ? (
+                          <>
+                            <option value={llmModel}>{llmModel}</option>
+                            <option value="">-- Fetch models to see more options --</option>
+                          </>
+                        ) : (
+                          <option value="">No models loaded - click Fetch Models</option>
+                        )
                       ) : (
                         <>
                           <option value="">Select a model...</option>
@@ -506,6 +631,7 @@ const ConfigTab: React.FC = () => {
                   type="text"
                   value={llmModel}
                   onChange={(e) => setLlmModel(e.target.value)}
+                  onBlur={saveLLMConfig}
                   className="w-full px-3 py-2 border rounded"
                   placeholder="gpt-3.5-turbo"
                 />
@@ -516,15 +642,18 @@ const ConfigTab: React.FC = () => {
                   : 'Enter OpenAI model name (e.g., gpt-3.5-turbo, gpt-4)'}
               </p>
             </div>
+            
+            {llmStatus && (
+              <div className={`p-2 rounded text-sm ${
+                llmStatus.type === 'success' ? 'bg-green-100 text-green-800' : 
+                llmStatus.type === 'info' ? 'bg-blue-100 text-blue-800' :
+                'bg-red-100 text-red-800'
+              }`}>
+                {llmStatus.message}
+              </div>
+            )}
           </div>
         </section>
-
-        <button
-          onClick={handleSave}
-          className="w-full px-4 py-3 bg-green-600 text-white rounded hover:bg-green-700 font-semibold"
-        >
-          Save Configuration
-        </button>
       </div>
     </div>
   );

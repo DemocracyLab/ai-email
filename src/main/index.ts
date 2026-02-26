@@ -55,6 +55,35 @@ const createWindow = () => {
     }
   });
 
+  // Set Content Security Policy for production builds
+  // In development, the HTML meta tag CSP allows unsafe-eval for HMR
+  // In production, we apply a stricter policy via session
+  if (!process.env.VITE_DEV_SERVER_URL) {
+    mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+      callback({
+        responseHeaders: {
+          ...details.responseHeaders,
+          'Content-Security-Policy': [
+            "default-src 'self';" +
+            "script-src 'self';" +
+            "style-src 'self' 'unsafe-inline';" +
+            "img-src 'self' data: https:;" +
+            "font-src 'self' data:;" +
+            "connect-src 'self' " +
+            "https://accounts.google.com " +
+            "https://oauth2.googleapis.com " +
+            "https://www.googleapis.com " +
+            "https://generativelanguage.googleapis.com " +
+            "https://api.openai.com " +
+            "https://sheets.googleapis.com " +
+            "https://secretmanager.googleapis.com " +
+            "https://gmail.googleapis.com;"
+          ]
+        }
+      });
+    });
+  }
+
   if (process.env.VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
     // Don't auto-open dev tools - user can open with F12 if needed
