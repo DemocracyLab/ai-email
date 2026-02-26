@@ -22,7 +22,7 @@ export interface AppConfig {
   };
   llm: {
     provider: 'gemini' | 'openai';
-    apiKey: string;
+    apiKey?: string; // Optional - fetched from Secret Manager
     model: string;
   };
   context: {
@@ -42,6 +42,6 @@ export type LLMProvider = 'gemini' | 'openai';
 
 export interface LLMConfig {
   provider: LLMProvider;
-  apiKey: string;
+  apiKey?: string; // Optional - fetched from Secret Manager
   model: string;
 }

@@ -79,7 +79,8 @@ export function setupGmailHandlers(ipcMain: IpcMain, store: Store<AppConfig>, ma
         scope: [
           'https://www.googleapis.com/auth/gmail.send',
           'https://www.googleapis.com/auth/gmail.readonly',
-          'https://www.googleapis.com/auth/spreadsheets'
+          'https://www.googleapis.com/auth/spreadsheets',
+          'https://www.googleapis.com/auth/cloud-platform' // For Secret Manager access
         ],
         prompt: 'consent'
       });

@@ -9,11 +9,8 @@ const ConfigTab: React.FC = () => {
   const [sheetUrl, setSheetUrl] = useState(config?.google?.sheetUrl || '');
   const [sheetName, setSheetName] = useState(config?.google?.sheetName || 'Sheet1');
   const [llmProvider, setLlmProvider] = useState<'gemini' | 'openai'>(config?.llm.provider || 'gemini');
-  const [llmApiKey, setLlmApiKey] = useState(config?.llm.apiKey || '');
   const [llmModel, setLlmModel] = useState(config?.llm.model || '');
-  const [subject, setSubject] = useState(config?.email.subject || 'Hello {{firstName}} {{lastName}}');
-  const [signature, setSignature] = useState(config?.email.signature || '\n\nBest regards');
-  const [status, setStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [status, setStatus] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
   const [isGoogleConnected, setIsGoogleConnected] = useState(!!config?.google?.refreshToken);
   const [isConnecting, setIsConnecting] = useState(false);
   const [showAuthCodeInput, setShowAuthCodeInput] = useState(false);
@@ -28,7 +25,6 @@ const ConfigTab: React.FC = () => {
       setSheetUrl(config.google?.sheetUrl || '');
       setSheetName(config.google?.sheetName || 'Sheet1');
       setLlmProvider(config.llm.provider);
-      setLlmApiKey(config.llm.apiKey);
       setLlmModel(config.llm.model);
       setIsGoogleConnected(!!config.google?.refreshToken);
     }
@@ -58,11 +54,6 @@ const ConfigTab: React.FC = () => {
       return;
     }
 
-    if (!llmApiKey) {
-      setStatus({ type: 'error', message: 'LLM API key is required' });
-      return;
-    }
-
     if (!llmModel) {
       setStatus({ type: 'error', message: 'Please select a model' });
       return;
@@ -80,20 +71,28 @@ const ConfigTab: React.FC = () => {
     }
 
     try {
-      await updateConfig({
+      const configUpdate: any = {
         user: { name: userName, email: userEmail },
-        google: (sheetId && config?.google?.refreshToken) ? { 
-          sheetId, 
-          sheetUrl,
-          sheetName,
-          refreshToken: config.google.refreshToken 
-        } : undefined,
         llm: {
           provider: llmProvider,
-          apiKey: llmApiKey,
           model: llmModel
         }
-      });
+      };
+
+      // Only update google config if we have valid data
+      if (sheetId && config?.google?.refreshToken) {
+        configUpdate.google = {
+          sheetId,
+          sheetUrl,
+          sheetName,
+          refreshToken: config.google.refreshToken
+        };
+      } else if (config?.google?.refreshToken) {
+        // Preserve existing google config if connected but no sheet configured
+        configUpdate.google = config.google;
+      }
+
+      await updateConfig(configUpdate);
       setStatus({ type: 'success', message: 'Configuration saved successfully' });
     } catch (error: any) {
       setStatus({ type: 'error', message: error.message });
@@ -187,15 +186,19 @@ const ConfigTab: React.FC = () => {
   };
 
   const handleFetchModels = async () => {
-    if (!llmApiKey) {
-      setStatus({ type: 'error', message: 'Please enter your Gemini API key first' });
+    if (!isGoogleConnected) {
+      setStatus({ type: 'error', message: 'Please connect your Google account first' });
       return;
     }
 
     try {
       setFetchingModels(true);
+      
+      // Fetch API key from Secret Manager
+      const apiKey = await window.electronAPI.getLLMApiKey();
+      
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1/models?key=${llmApiKey}`
+        `https://generativelanguage.googleapis.com/v1/models?key=${apiKey}`
       );
 
       if (!response.ok) {
@@ -456,16 +459,9 @@ const ConfigTab: React.FC = () => {
                 <option value="gemini">Google Gemini</option>
                 <option value="openai">OpenAI GPT</option>
               </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">API Key</label>
-              <input
-                type="password"
-                value={llmApiKey}
-                onChange={(e) => setLlmApiKey(e.target.value)}
-                className="w-full px-3 py-2 border rounded"
-                placeholder="sk-..."
-              />
+              <p className="text-xs text-gray-500 mt-1">
+                The LLM API key is centrally managed via Google Cloud Secret Manager
+              </p>
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Model</label>
@@ -493,7 +489,7 @@ const ConfigTab: React.FC = () => {
                     </select>
                     <button
                       onClick={handleFetchModels}
-                      disabled={fetchingModels || !llmApiKey}
+                      disabled={fetchingModels || !isGoogleConnected}
                       className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed whitespace-nowrap"
                     >
                       {fetchingModels ? 'Fetching...' : 'Fetch Models'}
@@ -501,7 +497,7 @@ const ConfigTab: React.FC = () => {
                   </div>
                   {availableModels.length === 0 && !fetchingModels && (
                     <p className="text-xs text-gray-500">
-                      {llmApiKey ? 'Click "Fetch Models" to reload' : 'Enter API key to load models'}
+                      {isGoogleConnected ? 'Click "Fetch Models" to load available models' : 'Connect your Google account to load models'}
                     </p>
                   )}
                 </div>

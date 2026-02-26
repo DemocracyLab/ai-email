@@ -22,13 +22,15 @@ export default defineConfig({
         }
       },
       {
-        entry: 'src/main/preload.js',
+        entry: 'src/main/preload.ts',
         vite: {
           build: {
             outDir: 'dist-electron',
             rollupOptions: {
+              external: ['electron'],
               output: {
-                format: 'cjs'
+                format: 'cjs',
+                entryFileNames: '[name].js'
               }
             }
           }

@@ -8,12 +8,13 @@ interface Window {
     clearConfig: () => Promise<import('./shared/types').AppConfig>;
     selectFile: () => Promise<{ path: string; content: string } | null>;
     saveFile: (path: string, content: string) => Promise<boolean>;
-    authorizeGmail: () => Promise<string>;
+    authorizeGmail: () => Promise<{ success: boolean; error?: string }>;
     saveGmailTokens: (code: string) => Promise<boolean>;
     sendEmail: (emailData: import('./shared/types').EmailData) => Promise<{ success: boolean; messageId?: string; error?: string }>;
     testGmailConnection: () => Promise<boolean>;
     getContacts: () => Promise<import('./shared/types').Contact[]>;
     updateContact: (contact: import('./shared/types').Contact) => Promise<boolean>;
-    testSheetsConnection: () => Promise<boolean>;
+    testSheetsConnection: () => Promise<{ success: boolean; error?: string }>;
+    getLLMApiKey: () => Promise<string>;
   };
 }

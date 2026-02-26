@@ -5,10 +5,18 @@ export async function generateEmail(
   llmConfig: LLMConfig
 ): Promise<string> {
   try {
-    if (llmConfig.provider === 'openai') {
-      return await generateWithOpenAI(contextTemplate, llmConfig);
-    } else if (llmConfig.provider === 'gemini') {
-      return await generateWithGemini(contextTemplate, llmConfig);
+    // Fetch API key from Secret Manager
+    const apiKey = await window.electronAPI.getLLMApiKey();
+    
+    const configWithKey = {
+      ...llmConfig,
+      apiKey
+    };
+    
+    if (configWithKey.provider === 'openai') {
+      return await generateWithOpenAI(contextTemplate, configWithKey);
+    } else if (configWithKey.provider === 'gemini') {
+      return await generateWithGemini(contextTemplate, configWithKey);
     }
     throw new Error('Unsupported LLM provider');
   } catch (error: any) {

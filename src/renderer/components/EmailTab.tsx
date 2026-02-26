@@ -61,8 +61,8 @@ const EmailTab: React.FC = () => {
       return;
     }
 
-    if (!config?.llm.apiKey) {
-      setStatus({ type: 'error', message: 'Please configure LLM settings first' });
+    if (!config?.llm.model) {
+      setStatus({ type: 'error', message: 'Please select an LLM model in Configuration' });
       return;
     }
 

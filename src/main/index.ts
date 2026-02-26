@@ -4,15 +4,12 @@ import { fileURLToPath } from 'url';
 import Store from 'electron-store';
 import { setupGmailHandlers } from './gmail.js';
 import { setupSheetsHandlers } from './sheets.js';
+import { setupSecretsHandlers } from './secrets.js';
 import { AppConfig } from '../shared/types.js';
 import dotenv from 'dotenv';
 
 // Load environment variables from .env file
 dotenv.config();
-
-console.log('[Main] Environment variables loaded');
-console.log('[Main] GOOGLE_CLIENT_ID:', process.env.GOOGLE_CLIENT_ID ? 'SET' : 'NOT SET');
-console.log('[Main] GOOGLE_CLIENT_SECRET:', process.env.GOOGLE_CLIENT_SECRET ? 'SET' : 'NOT SET');
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -40,9 +37,6 @@ let mainWindow: BrowserWindow | null = null;
 let appStarted = false;
 
 const createWindow = () => {
-  console.log('[Main] createWindow called, current mainWindow:', mainWindow !== null ? 'EXISTS' : 'NULL');
-  console.log('[Main] Stack trace:', new Error().stack);
-  
   // Prevent creating multiple windows
   if (mainWindow !== null) {
     console.log('[Main] Window already exists, skipping creation');
@@ -50,8 +44,6 @@ const createWindow = () => {
   }
   
   const preloadPath = path.join(__dirname, 'preload.js');
-  console.log('[Main] Preload path:', preloadPath);
-  console.log('[Main] __dirname:', __dirname);
   
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -144,3 +136,4 @@ ipcMain.handle('file:save', async (_event, filePath: string, content: string) =>
 // Setup Gmail and Sheets handlers
 setupGmailHandlers(ipcMain, store, mainWindow);
 setupSheetsHandlers(ipcMain, store);
+setupSecretsHandlers(ipcMain, store);

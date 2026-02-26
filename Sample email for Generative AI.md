@@ -14,6 +14,7 @@ Please write unique subject lines and emails using the sample below. Please foll
 - Always number the 2 items I'm asking recipients to do
 - Never put a period at the end of the 2 listed items
 - For the two issues that are listed, don't put a space at the beginning of each line
+- Each item must be on a separate line.
 - Don't label the subject line and email body, just bold the subject line
 - Always end with, "Best,"
 - Every sentence other than links should be unique, don't repeat across emails unless otherwise instructed above
