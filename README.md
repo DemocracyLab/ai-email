@@ -1,4 +1,4 @@
-# AI Mail
+# AI Email
 
 AI-powered email personalization tool with Gmail and Google Sheets integration for Google Workspace organizations.
 
@@ -147,8 +147,8 @@ See [SECURITY.md](SECURITY.md) for detailed security architecture.
 
 1.  **Clone the repository**:
     ```bash
-    git clone https://github.com/democracy-lab/ai-mail.git
-    cd ai-mail
+    git clone https://github.com/democracy-lab/ai-email.git
+    cd ai-email
     ```
 
 2.  **Install dependencies**:

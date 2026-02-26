@@ -1,6 +1,6 @@
 {
   "name": "ai-mail",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "AI-powered email personalization tool with Gmail and Google Sheets integration",
   "main": "dist-electron/index.js",
   "type": "module",
@@ -21,7 +21,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/democracy-lab/ai-mail.git"
+    "url": "https://github.com/democracy-lab/ai-email.git"
   },
   "author": "",
   "license": "MIT",
@@ -61,7 +61,7 @@
       {
         "provider": "github",
         "owner": "democracy-lab",
-        "repo": "ai-mail"
+        "repo": "ai-email"
       }
     ],
     "directories": {
