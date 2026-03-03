@@ -1,6 +1,6 @@
 {
   "name": "ai-mail",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "AI-powered email personalization tool with Gmail and Google Sheets integration",
   "main": "dist-electron/index.js",
   "type": "module",
@@ -21,7 +21,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/democracy-lab/ai-email.git"
+    "url": "https://github.com/DemocracyLab/ai-email.git"
   },
   "author": "",
   "license": "MIT",
@@ -60,7 +60,7 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "democracy-lab",
+        "owner": "DemocracyLab",
         "repo": "ai-email"
       }
     ],
@@ -75,6 +75,29 @@
       "target": [
         "nsis",
         "portable"
+      ]
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false
+    },
+    "dmg": {
+      "contents": [
+        {
+          "x": 410,
+          "y": 150,
+          "type": "link",
+          "path": "/Applications"
+        },
+        {
+          "x": 130,
+          "y": 150,
+          "type": "file"
+        }
       ]
     }
   }
