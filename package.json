@@ -1,6 +1,6 @@
 {
   "name": "ai-mail",
-  "version": "1.0.2",
+  "version": "1.0.6",
   "description": "AI-powered email personalization tool with Gmail and Google Sheets integration",
   "main": "dist-electron/index.js",
   "type": "module",
