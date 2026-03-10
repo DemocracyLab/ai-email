@@ -8,10 +8,14 @@ import { parse } from 'url';
 const gmail = google.gmail('v1');
 let oauthServer: http.Server | null = null;
 
-function getOAuth2Client() {
+function getOAuth2Client(store: Store<AppConfig>) {
+  const config = store.store as AppConfig;
+  const clientId = config.google?.clientId || process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = config.google?.clientSecret || process.env.GOOGLE_CLIENT_SECRET;
+
   return new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET,
+    clientId,
+    clientSecret,
     'http://localhost:3000/oauth2callback'
   );
 }
@@ -71,7 +75,7 @@ export function setupGmailHandlers(ipcMain: IpcMain, store: Store<AppConfig>, ma
   // Authorize Gmail
   ipcMain.handle('gmail:authorize', async () => {
     try {
-      const client = getOAuth2Client();
+      const client = getOAuth2Client(store);
 
       // Generate auth URL
       const authUrl = client.generateAuthUrl({
@@ -124,7 +128,7 @@ export function setupGmailHandlers(ipcMain: IpcMain, store: Store<AppConfig>, ma
   // Handle OAuth callback (store tokens)
   ipcMain.handle('gmail:saveTokens', async (_event, code: string) => {
     try {
-      const client = getOAuth2Client();
+      const client = getOAuth2Client(store);
       const { tokens } = await client.getToken(code);
       client.setCredentials(tokens);
 
@@ -153,7 +157,7 @@ export function setupGmailHandlers(ipcMain: IpcMain, store: Store<AppConfig>, ma
         return false;
       }
 
-      const client = getOAuth2Client();
+      const client = getOAuth2Client(store);
       client.setCredentials({
         refresh_token: config.refreshToken
       });
@@ -178,7 +182,7 @@ export function setupGmailHandlers(ipcMain: IpcMain, store: Store<AppConfig>, ma
         throw new Error('Gmail not authorized. Please connect your Google account.');
       }
 
-      const client = getOAuth2Client();
+      const client = getOAuth2Client(store);
       client.setCredentials({
         refresh_token: config.google.refreshToken
       });

@@ -19,6 +19,9 @@ export interface AppConfig {
     sheetId: string;
     sheetUrl: string;
     sheetName: string;
+    gcpProjectId?: string;
+    clientId?: string;
+    clientSecret?: string;
   };
   llm: {
     provider: 'gemini' | 'openai';

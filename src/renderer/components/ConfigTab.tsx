@@ -8,6 +8,9 @@ const ConfigTab: React.FC = () => {
   const [userEmail, setUserEmail] = useState(config?.user.email || '');
   const [sheetUrl, setSheetUrl] = useState(config?.google?.sheetUrl || '');
   const [sheetName, setSheetName] = useState(config?.google?.sheetName || 'Sheet1');
+  const [gcpProjectId, setGcpProjectId] = useState(config?.google?.gcpProjectId || '');
+  const [clientId, setClientId] = useState(config?.google?.clientId || '');
+  const [clientSecret, setClientSecret] = useState(config?.google?.clientSecret || '');
   const [llmProvider, setLlmProvider] = useState<'gemini' | 'openai'>(config?.llm.provider || 'gemini');
   const [llmModel, setLlmModel] = useState(config?.llm.model || '');
   const [userStatus, setUserStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
@@ -27,6 +30,9 @@ const ConfigTab: React.FC = () => {
       setUserEmail(config.user.email);
       setSheetUrl(config.google?.sheetUrl || '');
       setSheetName(config.google?.sheetName || 'Sheet1');
+      setGcpProjectId(config.google?.gcpProjectId || '');
+      setClientId(config.google?.clientId || '');
+      setClientSecret(config.google?.clientSecret || '');
       setLlmProvider(config.llm.provider);
       setLlmModel(config.llm.model);
       setAvailableModels(config.llm.availableModels || []);
@@ -171,6 +177,21 @@ const ConfigTab: React.FC = () => {
       setIsConnecting(true);
       setGoogleStatus({ type: 'info', message: 'Opening browser for Google authorization...' });
       
+      // Update config with the Project ID before authorizing
+      await updateConfig({
+        ...config,
+        google: {
+          ...config?.google,
+          refreshToken: config?.google?.refreshToken || '',
+          sheetId: config?.google?.sheetId || '',
+          sheetUrl: config?.google?.sheetUrl || '',
+          sheetName: config?.google?.sheetName || 'Sheet1',
+          gcpProjectId: gcpProjectId,
+          clientId: clientId,
+          clientSecret: clientSecret
+        }
+      });
+
       // This will open the browser and automatically handle the OAuth callback
       const result = await window.electronAPI.authorizeGmail();
       
@@ -396,7 +417,43 @@ const ConfigTab: React.FC = () => {
                   </p>
                 </div>
                 
-                {googleStatus && (
+              <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">GCP Project ID</label>
+                  <input
+                    type="text"
+                    value={gcpProjectId}
+                    onChange={(e) => setGcpProjectId(e.target.value)}
+                    className="w-full px-3 py-2 border rounded"
+                    placeholder="ai-mail-app-486520"
+                  />
+                </div>
+              </div>
+
+              <div className="mt-4 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">OAuth Client ID</label>
+                  <input
+                    type="text"
+                    value={clientId}
+                    onChange={(e) => setClientId(e.target.value)}
+                    className="w-full px-3 py-2 border rounded font-mono text-sm"
+                    placeholder="xxx.apps.googleusercontent.com"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">OAuth Client Secret</label>
+                  <input
+                    type="password"
+                    value={clientSecret}
+                    onChange={(e) => setClientSecret(e.target.value)}
+                    className="w-full px-3 py-2 border rounded font-mono text-sm"
+                    placeholder="GOCSPX-..."
+                  />
+                </div>
+              </div>
+
+              {googleStatus && (
                   <div className={`p-2 rounded text-sm ${
                     googleStatus.type === 'success' ? 'bg-green-100 text-green-800' : 
                     googleStatus.type === 'info' ? 'bg-blue-100 text-blue-800' :

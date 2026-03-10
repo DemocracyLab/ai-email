@@ -5,10 +5,14 @@ import { AppConfig, Contact } from '../shared/types.js';
 
 const sheets = google.sheets('v4');
 
-function getOAuth2Client() {
+function getOAuth2Client(store: Store<AppConfig>) {
+  const config = store.store as AppConfig;
+  const clientId = config.google?.clientId || process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = config.google?.clientSecret || process.env.GOOGLE_CLIENT_SECRET;
+
   return new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET,
+    clientId,
+    clientSecret,
     'http://localhost:3000/oauth2callback'
   );
 }
@@ -26,7 +30,7 @@ export function setupSheetsHandlers(ipcMain: IpcMain, store: Store<AppConfig>) {
         return { success: false, error: 'Sheet URL not configured' };
       }
 
-      const client = getOAuth2Client();
+      const client = getOAuth2Client(store);
       client.setCredentials({
         refresh_token: config.refreshToken
       });
@@ -76,7 +80,7 @@ export function setupSheetsHandlers(ipcMain: IpcMain, store: Store<AppConfig>) {
         throw new Error('Google Sheets not configured');
       }
 
-      const client = getOAuth2Client();
+      const client = getOAuth2Client(store);
       client.setCredentials({
         refresh_token: config.google.refreshToken
       });
@@ -138,7 +142,7 @@ export function setupSheetsHandlers(ipcMain: IpcMain, store: Store<AppConfig>) {
         throw new Error('Google Sheets not configured');
       }
 
-      const client = getOAuth2Client();
+      const client = getOAuth2Client(store);
       client.setCredentials({
         refresh_token: config.google.refreshToken
       });
