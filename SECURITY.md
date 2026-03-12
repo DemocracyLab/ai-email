@@ -35,7 +35,7 @@ The following domains are allowed for network requests:
    - `https://www.googleapis.com` - API discovery
    - `https://gmail.googleapis.com` - Gmail API
    - `https://sheets.googleapis.com` - Google Sheets API
-   - `https://secretmanager.googleapis.com` - Secret Manager API
+   - `https://script.google.com` - Apps Script Web App endpoints
 
 2. **LLM Providers**:
    - `https://generativelanguage.googleapis.com` - Google Gemini API
@@ -74,7 +74,7 @@ Beyond CSP, this app implements:
 2. **Node Integration**: Disabled in renderer process
 3. **Preload Script Security**: Uses IPC for controlled API access
 4. **Encrypted Config Storage**: Uses electron-store with encryption
-5. **Secret Manager**: API keys stored in GCP, not in config files
+5. **Apps Script**: API keys pulled via authorized App Script endpoints, avoiding static API keys stored locally in unprotected configs
 6. **OAuth Tokens**: Refresh tokens encrypted in electron-store
 
 ## Updating CSP
