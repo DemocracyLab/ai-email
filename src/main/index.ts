@@ -7,15 +7,6 @@ import { setupSheetsHandlers } from './sheets.js';
 import { setupSecretsHandlers } from './secrets.js';
 import { fetchConfigFromScript } from './configFetcher.js';
 import { AppConfig } from '../shared/types.js';
-import dotenv from 'dotenv';
-
-// Load environment variables from .env file in project root or current working directory
-dotenv.config();
-
-// Also try loading from app data path if not in dev
-if (!process.env.VITE_DEV_SERVER_URL) {
-  dotenv.config({ path: path.join(app.getPath('userData'), '.env') });
-}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
