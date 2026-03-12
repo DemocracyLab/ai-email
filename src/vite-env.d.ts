@@ -6,6 +6,7 @@ interface Window {
     getConfig: () => Promise<import('./shared/types').AppConfig>;
     setConfig: (config: Partial<import('./shared/types').AppConfig>) => Promise<import('./shared/types').AppConfig>;
     clearConfig: () => Promise<import('./shared/types').AppConfig>;
+    fetchConfigFromScript: (scriptUrl: string) => Promise<import('./shared/types').AppConfig>;
     selectFile: () => Promise<{ path: string; content: string } | null>;
     saveFile: (path: string, content: string) => Promise<boolean>;
     authorizeGmail: () => Promise<{ success: boolean; error?: string }>;

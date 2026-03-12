@@ -54,9 +54,7 @@ ai-mail/
 │   │   ├── App.tsx
 │   │   └── main.tsx
 │   └── shared/            # Shared types/interfaces
-├── .env                   # OAuth credentials (gitignored)
-├── .env.example           # Template for OAuth setup
-├── OAUTH_SETUP.md         # Admin setup guide
+├── APPS_SCRIPT_SETUP.md   # Setup guide for Apps Script config
 └── package.json
 ```
 
@@ -77,9 +75,9 @@ ai-mail/
 - Admin creates Google Cloud Project (one-time setup)
 - Enables Gmail API and Google Sheets API
 - Configures OAuth consent screen as "Internal"
-- Creates desktop app OAuth credentials
-- Embeds Client ID and Secret in app via `.env` file
-- End users click "Connect Google Account" in app
+- Admin deploys Apps Script web app
+- Distributes Web App URL to team members
+- End users enter Web App URL in app
 - OAuth flow opens browser for user authentication
 - User authorizes with their workspace account
 - App receives authorization code
@@ -103,7 +101,7 @@ ai-mail/
 - Show connection status indicators (connected/disconnected)
 - Add "Test Connection" button to verify Gmail + Sheets access
 - Validate email format
-- OAuth credentials in `.env` file (gitignored)
+- OAuth credentials in Apps Script web app (no local `.env`)
 
 ### 2. Context Tab
 

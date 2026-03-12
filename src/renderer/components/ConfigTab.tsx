@@ -8,6 +8,7 @@ const ConfigTab: React.FC = () => {
   const [userEmail, setUserEmail] = useState(config?.user.email || '');
   const [sheetUrl, setSheetUrl] = useState(config?.google?.sheetUrl || '');
   const [sheetName, setSheetName] = useState(config?.google?.sheetName || 'Sheet1');
+  const [scriptUrl, setScriptUrl] = useState(config?.google?.scriptUrl || '');
   const [llmProvider, setLlmProvider] = useState<'gemini' | 'openai'>(config?.llm.provider || 'gemini');
   const [llmModel, setLlmModel] = useState(config?.llm.model || '');
   const [userStatus, setUserStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
@@ -27,6 +28,7 @@ const ConfigTab: React.FC = () => {
       setUserEmail(config.user.email);
       setSheetUrl(config.google?.sheetUrl || '');
       setSheetName(config.google?.sheetName || 'Sheet1');
+      setScriptUrl(config.google?.scriptUrl || '');
       setLlmProvider(config.llm.provider);
       setLlmModel(config.llm.model);
       setAvailableModels(config.llm.availableModels || []);
@@ -64,7 +66,7 @@ const ConfigTab: React.FC = () => {
         llm: config?.llm || { provider: 'gemini', model: '' }
       };
 
-      if (config?.google?.refreshToken) {
+      if (config?.google) {
         configUpdate.google = config.google;
       }
 
@@ -84,7 +86,7 @@ const ConfigTab: React.FC = () => {
             user: config.user,
             llm: config.llm,
             google: {
-              refreshToken: config.google.refreshToken,
+              ...config.google,
               sheetId: '',
               sheetUrl: '',
               sheetName: 'Sheet1'
@@ -113,10 +115,10 @@ const ConfigTab: React.FC = () => {
         user: config.user,
         llm: config.llm,
         google: {
+          ...config.google,
           sheetId: extractedId,
           sheetUrl,
-          sheetName,
-          refreshToken: config.google.refreshToken
+          sheetName
         }
       });
       setSheetStatus({ type: 'success', message: 'Saved' });
@@ -125,25 +127,30 @@ const ConfigTab: React.FC = () => {
     }
   };
 
-  const saveLLMConfig = async () => {
+const saveLLMConfig = async (overrideModel?: string, overrideProvider?: string, overrideModels?: string[]) => {
     try {
+      const currentModel = overrideModel !== undefined ? overrideModel : llmModel;
+      const currentProvider = overrideProvider !== undefined ? overrideProvider : llmProvider;
+      const currentAvailableModels = overrideModels !== undefined ? overrideModels : availableModels;
+
       const configUpdate: any = {
         user: config?.user || { name: '', email: '' },
         llm: {
-          provider: llmProvider,
-          model: llmModel || '',
-          availableModels: availableModels.length > 0 ? availableModels : undefined
+          ...(config?.llm || {}),
+          provider: currentProvider,
+          model: currentModel || '',
+          availableModels: currentAvailableModels.length > 0 ? currentAvailableModels : undefined
         }
       };
 
-      if (config?.google?.refreshToken) {
+      if (config?.google) {
         configUpdate.google = config.google;
       }
 
       await updateConfig(configUpdate);
-      
+
       // Only show success message if a model was selected
-      if (llmModel) {
+      if (currentModel) {
         setLlmStatus({ type: 'success', message: 'Saved' });
       }
     } catch (error: any) {
@@ -162,31 +169,52 @@ const ConfigTab: React.FC = () => {
         return;
       }
       
-      if (!window.electronAPI.authorizeGmail) {
-        setGoogleStatus({ type: 'error', message: 'authorizeGmail method is not available' });
-        console.error('window.electronAPI.authorizeGmail is undefined');
+      if (!window.electronAPI.authorizeGmail || !window.electronAPI.fetchConfigFromScript) {
+        setGoogleStatus({ type: 'error', message: 'Required methods are not available' });
+        console.error('window.electronAPI methods are missing');
         return;
       }
       
       setIsConnecting(true);
-      setGoogleStatus({ type: 'info', message: 'Opening browser for Google authorization...' });
+
+      if (!scriptUrl) {
+         setGoogleStatus({ type: 'error', message: 'Please enter the Apps Script URL first.' });
+         setIsConnecting(false);
+         return;
+      }
+
+      setGoogleStatus({ type: 'info', message: 'Step 1: Opening browser to fetch initial secure configuration...' });
       
+      const newConfigWithSecrets = await window.electronAPI.fetchConfigFromScript(scriptUrl);
+      
+      // Update context config to rely on the fetched secrets
+      await updateConfig(newConfigWithSecrets);
+
+      setGoogleStatus({ type: 'info', message: 'Step 2: Opening browser for Google Workspace authorization...' });
+
       // This will open the browser and automatically handle the OAuth callback
       const result = await window.electronAPI.authorizeGmail();
       
       if (result.success) {
         setIsGoogleConnected(true);
-        setGoogleStatus({ type: 'success', message: 'Google account connected successfully!' });
+        setGoogleStatus({ type: 'success', message: 'Configuration and Google account connected successfully!' });
+        setIsConnecting(false);
+        setShowAuthCodeInput(false);
         
         // Reload config to get the refresh token
         const newConfig = await window.electronAPI.getConfig();
         await updateConfig(newConfig);
       } else {
         setGoogleStatus({ type: 'error', message: result.error || 'Authorization failed' });
+        setIsConnecting(false);
+        setShowAuthCodeInput(false);
       }
     } catch (error: any) {
+      if (error.message && error.message.includes('Connection attempt was cancelled.')) {
+        // Ignored. The user started a new connection attempt or cancelled.
+        return; 
+      }
       setGoogleStatus({ type: 'error', message: error.message });
-    } finally {
       setIsConnecting(false);
       setShowAuthCodeInput(false);
     }
@@ -226,6 +254,7 @@ const ConfigTab: React.FC = () => {
       await window.electronAPI.setConfig({
         ...currentConfig,
         google: {
+          ...currentConfig.google,
           sheetId: currentConfig.google?.sheetId || '',
           sheetUrl: currentConfig.google?.sheetUrl || '',
           sheetName: currentConfig.google?.sheetName || 'Sheet1',
@@ -271,12 +300,13 @@ const ConfigTab: React.FC = () => {
         const configUpdate: any = {
           user: config?.user || { name: '', email: '' },
           llm: {
+            ...(config?.llm || {}),
             provider: llmProvider,
             model: llmModel || '',
             availableModels: models
           }
         };
-        if (config?.google?.refreshToken) {
+        if (config?.google) {
           configUpdate.google = config.google;
         }
         await updateConfig(configUpdate);
@@ -396,7 +426,23 @@ const ConfigTab: React.FC = () => {
                   </p>
                 </div>
                 
-                {googleStatus && (
+              <div className="mt-4 grid grid-cols-1 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Apps Script Web App URL</label>
+                  <input
+                    type="text"
+                    value={scriptUrl}
+                    onChange={(e) => setScriptUrl(e.target.value)}
+                    className="w-full px-3 py-2 border rounded"
+                    placeholder="https://script.google.com/macros/s/.../exec"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Paste the Web App URL provided by your administrator. It securely configures this app.
+                  </p>
+                </div>
+              </div>
+
+              {googleStatus && (
                   <div className={`p-2 rounded text-sm ${
                     googleStatus.type === 'success' ? 'bg-green-100 text-green-800' : 
                     googleStatus.type === 'info' ? 'bg-blue-100 text-blue-800' :
@@ -406,13 +452,23 @@ const ConfigTab: React.FC = () => {
                   </div>
                 )}
 
-                <button
-                  onClick={handleConnectGoogle}
-                  disabled={isConnecting}
-                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400"
-                >
-                  {isConnecting ? 'Opening browser...' : 'Connect Google Account'}
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleConnectGoogle}
+                    disabled={isConnecting}
+                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400"
+                  >
+                    {isConnecting ? 'Opening browser...' : 'Connect Google Account'}
+                  </button>
+                  {isConnecting && (
+                    <button
+                      onClick={() => setIsConnecting(false)}
+                      className="px-4 py-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50"
+                    >
+                      Cancel / It didn't open
+                    </button>
+                  )}
+                </div>
 
                 {showAuthCodeInput && (
                   <div className="mt-4 p-3 bg-yellow-50 rounded text-sm">
@@ -560,12 +616,13 @@ const ConfigTab: React.FC = () => {
               <select
                 value={llmProvider}
                 onChange={(e) => {
-                  setLlmProvider(e.target.value as 'gemini' | 'openai');
+                  const newProvider = e.target.value as 'gemini' | 'openai';
+                  setLlmProvider(newProvider);
                   // Clear model when switching providers
                   setLlmModel('');
                   setAvailableModels([]);
                   // Auto-save immediately when selecting a provider
-                  saveLLMConfig();
+                  saveLLMConfig('', newProvider, []);
                 }}
                 className="w-full px-3 py-2 border rounded"
               >
@@ -584,9 +641,10 @@ const ConfigTab: React.FC = () => {
                     <select
                       value={llmModel}
                       onChange={(e) => {
-                        setLlmModel(e.target.value);
+                        const newModel = e.target.value;
+                        setLlmModel(newModel);
                         // Auto-save immediately when selecting a model
-                        saveLLMConfig();
+                        saveLLMConfig(newModel, llmProvider, availableModels);
                       }}
                       className="flex-1 px-3 py-2 border rounded"
                       disabled={fetchingModels}
@@ -631,7 +689,7 @@ const ConfigTab: React.FC = () => {
                   type="text"
                   value={llmModel}
                   onChange={(e) => setLlmModel(e.target.value)}
-                  onBlur={saveLLMConfig}
+                  onBlur={() => saveLLMConfig(llmModel)}
                   className="w-full px-3 py-2 border rounded"
                   placeholder="gpt-3.5-turbo"
                 />
