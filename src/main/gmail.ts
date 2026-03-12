@@ -131,6 +131,7 @@ export function setupGmailHandlers(ipcMain: IpcMain, store: Store<AppConfig>, ma
       if (tokens.refresh_token) {
         const config = store.store;
         await store.set('google', {
+          ...config.google,
           refreshToken: tokens.refresh_token,
           sheetId: config.google?.sheetId || '',
           sheetName: config.google?.sheetName || 'Sheet1'
@@ -155,6 +156,7 @@ export function setupGmailHandlers(ipcMain: IpcMain, store: Store<AppConfig>, ma
       if (tokens.refresh_token) {
         const config = store.store;
         await store.set('google', {
+          ...config.google,
           refreshToken: tokens.refresh_token,
           sheetId: config.google?.sheetId || '',
           sheetName: config.google?.sheetName || 'Sheet1'
