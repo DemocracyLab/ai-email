@@ -127,15 +127,19 @@ const ConfigTab: React.FC = () => {
     }
   };
 
-  const saveLLMConfig = async () => {
+const saveLLMConfig = async (overrideModel?: string, overrideProvider?: string, overrideModels?: string[]) => {
     try {
+      const currentModel = overrideModel !== undefined ? overrideModel : llmModel;
+      const currentProvider = overrideProvider !== undefined ? overrideProvider : llmProvider;
+      const currentAvailableModels = overrideModels !== undefined ? overrideModels : availableModels;
+
       const configUpdate: any = {
         user: config?.user || { name: '', email: '' },
         llm: {
           ...(config?.llm || {}),
-          provider: llmProvider,
-          model: llmModel || '',
-          availableModels: availableModels.length > 0 ? availableModels : undefined
+          provider: currentProvider,
+          model: currentModel || '',
+          availableModels: currentAvailableModels.length > 0 ? currentAvailableModels : undefined
         }
       };
 
@@ -144,9 +148,9 @@ const ConfigTab: React.FC = () => {
       }
 
       await updateConfig(configUpdate);
-      
+
       // Only show success message if a model was selected
-      if (llmModel) {
+      if (currentModel) {
         setLlmStatus({ type: 'success', message: 'Saved' });
       }
     } catch (error: any) {
@@ -612,12 +616,13 @@ const ConfigTab: React.FC = () => {
               <select
                 value={llmProvider}
                 onChange={(e) => {
-                  setLlmProvider(e.target.value as 'gemini' | 'openai');
+                  const newProvider = e.target.value as 'gemini' | 'openai';
+                  setLlmProvider(newProvider);
                   // Clear model when switching providers
                   setLlmModel('');
                   setAvailableModels([]);
                   // Auto-save immediately when selecting a provider
-                  saveLLMConfig();
+                  saveLLMConfig('', newProvider, []);
                 }}
                 className="w-full px-3 py-2 border rounded"
               >
@@ -636,9 +641,10 @@ const ConfigTab: React.FC = () => {
                     <select
                       value={llmModel}
                       onChange={(e) => {
-                        setLlmModel(e.target.value);
+                        const newModel = e.target.value;
+                        setLlmModel(newModel);
                         // Auto-save immediately when selecting a model
-                        saveLLMConfig();
+                        saveLLMConfig(newModel, llmProvider, availableModels);
                       }}
                       className="flex-1 px-3 py-2 border rounded"
                       disabled={fetchingModels}
@@ -683,7 +689,7 @@ const ConfigTab: React.FC = () => {
                   type="text"
                   value={llmModel}
                   onChange={(e) => setLlmModel(e.target.value)}
-                  onBlur={saveLLMConfig}
+                  onBlur={() => saveLLMConfig(llmModel)}
                   className="w-full px-3 py-2 border rounded"
                   placeholder="gpt-3.5-turbo"
                 />
