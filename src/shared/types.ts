@@ -19,7 +19,7 @@ export interface AppConfig {
     sheetId: string;
     sheetUrl: string;
     sheetName: string;
-    gcpProjectId?: string;
+    scriptUrl?: string;
     clientId?: string;
     clientSecret?: string;
   };

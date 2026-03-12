@@ -8,9 +8,7 @@ const ConfigTab: React.FC = () => {
   const [userEmail, setUserEmail] = useState(config?.user.email || '');
   const [sheetUrl, setSheetUrl] = useState(config?.google?.sheetUrl || '');
   const [sheetName, setSheetName] = useState(config?.google?.sheetName || 'Sheet1');
-  const [gcpProjectId, setGcpProjectId] = useState(config?.google?.gcpProjectId || '');
-  const [clientId, setClientId] = useState(config?.google?.clientId || '');
-  const [clientSecret, setClientSecret] = useState(config?.google?.clientSecret || '');
+  const [scriptUrl, setScriptUrl] = useState(config?.google?.scriptUrl || '');
   const [llmProvider, setLlmProvider] = useState<'gemini' | 'openai'>(config?.llm.provider || 'gemini');
   const [llmModel, setLlmModel] = useState(config?.llm.model || '');
   const [userStatus, setUserStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
@@ -30,9 +28,7 @@ const ConfigTab: React.FC = () => {
       setUserEmail(config.user.email);
       setSheetUrl(config.google?.sheetUrl || '');
       setSheetName(config.google?.sheetName || 'Sheet1');
-      setGcpProjectId(config.google?.gcpProjectId || '');
-      setClientId(config.google?.clientId || '');
-      setClientSecret(config.google?.clientSecret || '');
+      setScriptUrl(config.google?.scriptUrl || '');
       setLlmProvider(config.llm.provider);
       setLlmModel(config.llm.model);
       setAvailableModels(config.llm.availableModels || []);
@@ -70,7 +66,7 @@ const ConfigTab: React.FC = () => {
         llm: config?.llm || { provider: 'gemini', model: '' }
       };
 
-      if (config?.google?.refreshToken) {
+      if (config?.google) {
         configUpdate.google = config.google;
       }
 
@@ -90,7 +86,7 @@ const ConfigTab: React.FC = () => {
             user: config.user,
             llm: config.llm,
             google: {
-              refreshToken: config.google.refreshToken,
+              ...config.google,
               sheetId: '',
               sheetUrl: '',
               sheetName: 'Sheet1'
@@ -119,10 +115,10 @@ const ConfigTab: React.FC = () => {
         user: config.user,
         llm: config.llm,
         google: {
+          ...config.google,
           sheetId: extractedId,
           sheetUrl,
-          sheetName,
-          refreshToken: config.google.refreshToken
+          sheetName
         }
       });
       setSheetStatus({ type: 'success', message: 'Saved' });
@@ -136,13 +132,14 @@ const ConfigTab: React.FC = () => {
       const configUpdate: any = {
         user: config?.user || { name: '', email: '' },
         llm: {
+          ...(config?.llm || {}),
           provider: llmProvider,
           model: llmModel || '',
           availableModels: availableModels.length > 0 ? availableModels : undefined
         }
       };
 
-      if (config?.google?.refreshToken) {
+      if (config?.google) {
         configUpdate.google = config.google;
       }
 
@@ -168,46 +165,52 @@ const ConfigTab: React.FC = () => {
         return;
       }
       
-      if (!window.electronAPI.authorizeGmail) {
-        setGoogleStatus({ type: 'error', message: 'authorizeGmail method is not available' });
-        console.error('window.electronAPI.authorizeGmail is undefined');
+      if (!window.electronAPI.authorizeGmail || !window.electronAPI.fetchConfigFromScript) {
+        setGoogleStatus({ type: 'error', message: 'Required methods are not available' });
+        console.error('window.electronAPI methods are missing');
         return;
       }
       
       setIsConnecting(true);
-      setGoogleStatus({ type: 'info', message: 'Opening browser for Google authorization...' });
+
+      if (!scriptUrl) {
+         setGoogleStatus({ type: 'error', message: 'Please enter the Apps Script URL first.' });
+         setIsConnecting(false);
+         return;
+      }
+
+      setGoogleStatus({ type: 'info', message: 'Step 1: Opening browser to fetch initial secure configuration...' });
       
-      // Update config with the Project ID before authorizing
-      await updateConfig({
-        ...config,
-        google: {
-          ...config?.google,
-          refreshToken: config?.google?.refreshToken || '',
-          sheetId: config?.google?.sheetId || '',
-          sheetUrl: config?.google?.sheetUrl || '',
-          sheetName: config?.google?.sheetName || 'Sheet1',
-          gcpProjectId: gcpProjectId,
-          clientId: clientId,
-          clientSecret: clientSecret
-        }
-      });
+      const newConfigWithSecrets = await window.electronAPI.fetchConfigFromScript(scriptUrl);
+      
+      // Update context config to rely on the fetched secrets
+      await updateConfig(newConfigWithSecrets);
+
+      setGoogleStatus({ type: 'info', message: 'Step 2: Opening browser for Google Workspace authorization...' });
 
       // This will open the browser and automatically handle the OAuth callback
       const result = await window.electronAPI.authorizeGmail();
       
       if (result.success) {
         setIsGoogleConnected(true);
-        setGoogleStatus({ type: 'success', message: 'Google account connected successfully!' });
+        setGoogleStatus({ type: 'success', message: 'Configuration and Google account connected successfully!' });
+        setIsConnecting(false);
+        setShowAuthCodeInput(false);
         
         // Reload config to get the refresh token
         const newConfig = await window.electronAPI.getConfig();
         await updateConfig(newConfig);
       } else {
         setGoogleStatus({ type: 'error', message: result.error || 'Authorization failed' });
+        setIsConnecting(false);
+        setShowAuthCodeInput(false);
       }
     } catch (error: any) {
+      if (error.message && error.message.includes('Connection attempt was cancelled.')) {
+        // Ignored. The user started a new connection attempt or cancelled.
+        return; 
+      }
       setGoogleStatus({ type: 'error', message: error.message });
-    } finally {
       setIsConnecting(false);
       setShowAuthCodeInput(false);
     }
@@ -247,6 +250,7 @@ const ConfigTab: React.FC = () => {
       await window.electronAPI.setConfig({
         ...currentConfig,
         google: {
+          ...currentConfig.google,
           sheetId: currentConfig.google?.sheetId || '',
           sheetUrl: currentConfig.google?.sheetUrl || '',
           sheetName: currentConfig.google?.sheetName || 'Sheet1',
@@ -292,12 +296,13 @@ const ConfigTab: React.FC = () => {
         const configUpdate: any = {
           user: config?.user || { name: '', email: '' },
           llm: {
+            ...(config?.llm || {}),
             provider: llmProvider,
             model: llmModel || '',
             availableModels: models
           }
         };
-        if (config?.google?.refreshToken) {
+        if (config?.google) {
           configUpdate.google = config.google;
         }
         await updateConfig(configUpdate);
@@ -417,39 +422,19 @@ const ConfigTab: React.FC = () => {
                   </p>
                 </div>
                 
-              <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="mt-4 grid grid-cols-1 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-1">GCP Project ID</label>
+                  <label className="block text-sm font-medium mb-1">Apps Script Web App URL</label>
                   <input
                     type="text"
-                    value={gcpProjectId}
-                    onChange={(e) => setGcpProjectId(e.target.value)}
+                    value={scriptUrl}
+                    onChange={(e) => setScriptUrl(e.target.value)}
                     className="w-full px-3 py-2 border rounded"
-                    placeholder="ai-mail-app-486520"
+                    placeholder="https://script.google.com/macros/s/.../exec"
                   />
-                </div>
-              </div>
-
-              <div className="mt-4 space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">OAuth Client ID</label>
-                  <input
-                    type="text"
-                    value={clientId}
-                    onChange={(e) => setClientId(e.target.value)}
-                    className="w-full px-3 py-2 border rounded font-mono text-sm"
-                    placeholder="xxx.apps.googleusercontent.com"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">OAuth Client Secret</label>
-                  <input
-                    type="password"
-                    value={clientSecret}
-                    onChange={(e) => setClientSecret(e.target.value)}
-                    className="w-full px-3 py-2 border rounded font-mono text-sm"
-                    placeholder="GOCSPX-..."
-                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Paste the Web App URL provided by your administrator. It securely configures this app.
+                  </p>
                 </div>
               </div>
 
@@ -463,13 +448,23 @@ const ConfigTab: React.FC = () => {
                   </div>
                 )}
 
-                <button
-                  onClick={handleConnectGoogle}
-                  disabled={isConnecting}
-                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400"
-                >
-                  {isConnecting ? 'Opening browser...' : 'Connect Google Account'}
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleConnectGoogle}
+                    disabled={isConnecting}
+                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400"
+                  >
+                    {isConnecting ? 'Opening browser...' : 'Connect Google Account'}
+                  </button>
+                  {isConnecting && (
+                    <button
+                      onClick={() => setIsConnecting(false)}
+                      className="px-4 py-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50"
+                    >
+                      Cancel / It didn't open
+                    </button>
+                  )}
+                </div>
 
                 {showAuthCodeInput && (
                   <div className="mt-4 p-3 bg-yellow-50 rounded text-sm">

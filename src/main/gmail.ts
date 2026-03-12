@@ -7,6 +7,7 @@ import { parse } from 'url';
 
 const gmail = google.gmail('v1');
 let oauthServer: http.Server | null = null;
+let oauthReject: ((reason?: any) => void) | null = null;
 
 function getOAuth2Client(store: Store<AppConfig>) {
   const config = store.store as AppConfig;
@@ -24,8 +25,15 @@ function createOAuthServer(store: Store<AppConfig>, mainWindow: any): Promise<st
   return new Promise((resolve, reject) => {
     // Close existing server if any
     if (oauthServer) {
-      oauthServer.close();
+      try { oauthServer.close(); } catch (e) {}
+      oauthServer = null;
     }
+    if (oauthReject) {
+      oauthReject(new Error('Connection attempt was cancelled.'));
+      oauthReject = null;
+    }
+    
+    oauthReject = reject;
 
     oauthServer = http.createServer(async (req, res) => {
       const url = parse(req.url!, true);
@@ -40,7 +48,7 @@ function createOAuthServer(store: Store<AppConfig>, mainWindow: any): Promise<st
             <html>
               <head><title>Authorization Successful</title></head>
               <body style="font-family: Arial; text-align: center; padding: 50px;">
-                <h1>✓ Authorization Successful!</h1>
+                <h1>Authorization Successful!</h1>
                 <p>You can close this window and return to the app.</p>
                 <script>window.close();</script>
               </body>
@@ -48,9 +56,12 @@ function createOAuthServer(store: Store<AppConfig>, mainWindow: any): Promise<st
           `);
           
           // Close server
-          oauthServer?.close();
-          oauthServer = null;
-          
+          if (oauthServer) {
+            try { oauthServer.close(); } catch (e) {}
+            oauthServer = null;
+          }
+          oauthReject = null;
+
           resolve(code);
         } else {
           res.writeHead(400, { 'Content-Type': 'text/plain' });
@@ -64,9 +75,18 @@ function createOAuthServer(store: Store<AppConfig>, mainWindow: any): Promise<st
       console.log('[OAuth] Server listening on port 3000');
     });
 
-    oauthServer.on('error', (err) => {
+    oauthServer.on('error', (err: any) => {
       console.error('[OAuth] Server error:', err);
-      reject(err);
+      if (oauthServer) {
+        try { oauthServer.close(); } catch (e) {}
+        oauthServer = null;
+      }
+      oauthReject = null;
+      if (err.code === 'EADDRINUSE') {
+        reject(new Error('Port 3000 is already in use. Please close any other authorization tabs.'));
+      } else {
+        reject(err);
+      }
     });
   });
 }
@@ -83,8 +103,7 @@ export function setupGmailHandlers(ipcMain: IpcMain, store: Store<AppConfig>, ma
         scope: [
           'https://www.googleapis.com/auth/gmail.send',
           'https://www.googleapis.com/auth/gmail.readonly',
-          'https://www.googleapis.com/auth/spreadsheets',
-          'https://www.googleapis.com/auth/cloud-platform' // For Secret Manager access
+          'https://www.googleapis.com/auth/spreadsheets'
         ],
         prompt: 'consent'
       });

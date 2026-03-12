@@ -5,6 +5,7 @@ import Store from 'electron-store';
 import { setupGmailHandlers } from './gmail.js';
 import { setupSheetsHandlers } from './sheets.js';
 import { setupSecretsHandlers } from './secrets.js';
+import { fetchConfigFromScript } from './configFetcher.js';
 import { AppConfig } from '../shared/types.js';
 import dotenv from 'dotenv';
 
@@ -139,6 +140,23 @@ ipcMain.handle('config:set', (_event, config: Partial<AppConfig>) => {
 ipcMain.handle('config:clear', () => {
   store.clear();
   return store.store;
+});
+
+ipcMain.handle('config:fetch-from-script', async (_event, scriptUrl: string) => {
+  try {
+    const result = await fetchConfigFromScript(scriptUrl);
+    
+    // Save to store
+    store.set('google.clientId', result.clientId);
+    store.set('google.clientSecret', result.clientSecret);
+    store.set('google.scriptUrl', scriptUrl);
+    store.set('llm.apiKey', result.llmApiKey);
+    
+    return store.store;
+  } catch (error: any) {
+    console.error('[Config] Error fetching config from script:', error);
+    throw new Error(error.message || 'Failed to fetch configuration');
+  }
 });
 
 // File handlers

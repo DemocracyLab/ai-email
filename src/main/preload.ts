@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getConfig: () => ipcRenderer.invoke('config:get'),
   setConfig: (config: any) => ipcRenderer.invoke('config:set', config),
   clearConfig: () => ipcRenderer.invoke('config:clear'),
+  fetchConfigFromScript: (scriptUrl: string) => ipcRenderer.invoke('config:fetch-from-script', scriptUrl),
 
   // Files
   selectFile: () => ipcRenderer.invoke('file:select'),
