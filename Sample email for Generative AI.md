@@ -1,4 +1,4 @@
-# Sample email for Generative AI 
+# Sample email for Generative AI
 Please write unique subject lines and emails using the sample below. Please follow the following rules:
 
 - Rewrite the paragraphs, keeping the order and number of paragraphs from the sample
@@ -16,7 +16,7 @@ Please write unique subject lines and emails using the sample below. Please foll
 - For the two issues that are listed, don't put a space at the beginning of each line
 - Each of the two issues must be on a separate line.
 - Don't label the subject line and email body, just bold the subject line
-- Always end with, "Best,"
+- Always end with, "Best," the signature will come from the gmail sig
 - Every sentence other than links should be unique, don't repeat across emails unless otherwise instructed above
 - Write in a professional and friendly tone
 - The subject line must be text only, not Markdown or HTML
@@ -43,5 +43,3 @@ Thank you for considering this opportunity. We look forward to connecting with y
 
 Best,
 
-
-David
