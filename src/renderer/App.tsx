@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import ConfigTab from './components/ConfigTab';
 import ContextTab from './components/ContextTab';
@@ -10,10 +10,11 @@ type Tab = 'config' | 'context' | 'email';
 function AppContent() {
   const { config } = useApp();
   const [activeTab, setActiveTab] = useState<Tab>('config');
+  const initialTabSet = useRef(false);
 
   // Determine initial tab based on configuration completeness
   useEffect(() => {
-    if (!config) return;
+    if (!config || initialTabSet.current) return;
 
     // Check if configuration is complete
     const hasUserInfo = config.user.name && config.user.email;
@@ -33,6 +34,8 @@ function AppContent() {
     } else {
       setActiveTab('email');
     }
+    
+    initialTabSet.current = true;
   }, [config]);
 
   return (

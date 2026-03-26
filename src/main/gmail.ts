@@ -103,7 +103,8 @@ export function setupGmailHandlers(ipcMain: IpcMain, store: Store<AppConfig>, ma
         scope: [
           'https://www.googleapis.com/auth/gmail.send',
           'https://www.googleapis.com/auth/gmail.readonly',
-          'https://www.googleapis.com/auth/spreadsheets'
+          'https://www.googleapis.com/auth/spreadsheets',
+          'https://www.googleapis.com/auth/gmail.settings.basic'
         ],
         prompt: 'consent'
       });
@@ -208,6 +209,22 @@ export function setupGmailHandlers(ipcMain: IpcMain, store: Store<AppConfig>, ma
         refresh_token: config.google.refreshToken
       });
 
+      // Fetch user's signature
+      let signature = '';
+      try {
+        const sendAsResponse = await gmail.users.settings.sendAs.list({
+          auth: client,
+          userId: 'me'
+        });
+        const aliases = sendAsResponse.data.sendAs || [];
+        const alias = aliases.find(a => a.sendAsEmail === config.user.email) || aliases.find(a => a.isPrimary);
+        if (alias && alias.signature) {
+          signature = `<br><br>${alias.signature}`;
+        }
+      } catch (sigError) {
+        console.warn('Failed to fetch signature:', sigError);
+      }
+
       // Create email
       const message = [
         `From: ${config.user.name} <${config.user.email}>`,
@@ -215,7 +232,7 @@ export function setupGmailHandlers(ipcMain: IpcMain, store: Store<AppConfig>, ma
         `Subject: ${emailData.subject}`,
         'Content-Type: text/html; charset=utf-8',
         '',
-        emailData.body
+        emailData.body + signature
       ].join('\n');
 
       const encodedMessage = Buffer.from(message)
