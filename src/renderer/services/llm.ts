@@ -17,6 +17,8 @@ export async function generateEmail(
       return await generateWithOpenAI(contextTemplate, configWithKey);
     } else if (configWithKey.provider === 'gemini') {
       return await generateWithGemini(contextTemplate, configWithKey);
+    } else if (configWithKey.provider === 'claude') {
+      return await generateWithClaude(contextTemplate, configWithKey);
     } else {
       throw new Error('Unsupported LLM provider');
     }
@@ -158,4 +160,60 @@ Generate a professional, personalized email.`
 
   const data = await response.json();
   return data.candidates[0].content.parts[0].text.trim();
+}
+
+async function generateWithClaude(
+  contextTemplate: string,
+  llmConfig: LLMConfig
+): Promise<string> {
+  if (!llmConfig.model) {
+    throw new Error('No model selected. Please fetch and select a model in Configuration.');
+  }
+
+  const systemPrompt = `You are an email writing assistant. Generate a personalized email based on the provided context template.
+
+FORMATTING RULES:
+- The FIRST LINE of your output should be the subject line (without "Subject:" prefix)
+- Use double newlines (blank lines) to separate distinct paragraphs
+- Use single newlines for list items or lines that should be on separate lines but stay together visually
+- The template may contain placeholders like {{firstName}} and {{lastName}} - leave these as-is in your output, they will be replaced later
+
+Example formatting:
+Paragraph one text here.
+
+Paragraph two with a list:
+1. First item
+2. Second item
+3. Third item
+
+Paragraph three continues here.`;
+
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': llmConfig.apiKey!,
+      'anthropic-version': '2023-06-01'
+    },
+    body: JSON.stringify({
+      model: llmConfig.model,
+      max_tokens: 8000,
+      system: systemPrompt,
+      messages: [
+        {
+          role: 'user',
+          content: `Context Template:\n${contextTemplate}\n\nGenerate a professional, personalized email.`
+        }
+      ]
+    })
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    console.error('Claude API error:', error.error?.message || 'Request failed');
+    throw new Error(error.error?.message || 'Claude API request failed');
+  }
+
+  const data = await response.json();
+  return data.content[0].text.trim();
 }

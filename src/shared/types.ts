@@ -24,8 +24,13 @@ export interface AppConfig {
     clientSecret?: string;
   };
   llm: {
-    provider: 'gemini' | 'openai';
-    apiKey?: string; // Optional - fetched from Secret Manager
+    provider: 'gemini' | 'openai' | 'claude';
+    apiKey?: string; // Legacy - single key. Prefer apiKeyByProvider going forward.
+    apiKeyByProvider?: {
+      gemini?: string;
+      openai?: string;
+      claude?: string;
+    };
     model: string;
     availableModels?: string[]; // Cached list of available models
   };
@@ -42,11 +47,12 @@ export interface EmailData {
   isTest?: boolean;
 }
 
-export type LLMProvider = 'gemini' | 'openai';
+export type LLMProvider = 'gemini' | 'openai' | 'claude';
 
 export interface LLMConfig {
   provider: LLMProvider;
-  apiKey?: string; // Optional - fetched from Secret Manager
+  apiKey?: string; // Resolved active key, populated at generation time
+  apiKeyByProvider?: Record<string, string>;
   model: string;
   availableModels?: string[]; // Cached list of available models
 }

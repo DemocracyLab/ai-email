@@ -217,7 +217,8 @@ export function setupGmailHandlers(ipcMain: IpcMain, store: Store<AppConfig>, ma
           userId: 'me'
         });
         const aliases = sendAsResponse.data.sendAs || [];
-        const alias = aliases.find(a => a.sendAsEmail === config.user.email) || aliases.find(a => a.isPrimary);
+        const targetEmail = config.user.email?.trim().toLowerCase();
+        const alias = aliases.find(a => a.sendAsEmail?.toLowerCase() === targetEmail) || aliases.find(a => a.isPrimary);
         if (alias && alias.signature) {
           signature = `<br><br>${alias.signature}`;
         }

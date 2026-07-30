@@ -21,7 +21,7 @@ const cleanupActive = () => {
   }
 };
 
-export async function fetchConfigFromScript(scriptUrl: string): Promise<{ clientId: string; clientSecret: string; llmApiKey: string }> {
+export async function fetchConfigFromScript(scriptUrl: string): Promise<{ clientId: string; clientSecret: string; llmApiKey?: string; llmApiKeyByProvider?: Record<string, string> }> {
   return new Promise((resolve, reject) => {
     // Clean up any previously hanging server/promise
     cleanupActive();
@@ -58,7 +58,8 @@ export async function fetchConfigFromScript(scriptUrl: string): Promise<{ client
           const decodedData = Buffer.from(decodeURIComponent(dataParam), 'base64').toString('utf8');
           const configData = JSON.parse(decodedData);
 
-          if (!configData.clientId || !configData.clientSecret || !configData.llmApiKey) {
+          const hasApiKey = configData.llmApiKey || configData.llmApiKeyByProvider;
+          if (!configData.clientId || !configData.clientSecret || !hasApiKey) {
              res.writeHead(400, { 'Content-Type': 'text/html' });
              res.end('<h1>Error: Missing required configuration data</h1><p>You can close this window and try again.</p>');
              cleanup();
@@ -81,7 +82,9 @@ export async function fetchConfigFromScript(scriptUrl: string): Promise<{ client
           resolve({
             clientId: configData.clientId,
             clientSecret: configData.clientSecret,
-            llmApiKey: configData.llmApiKey
+            ...(configData.llmApiKeyByProvider
+              ? { llmApiKeyByProvider: configData.llmApiKeyByProvider }
+              : { llmApiKey: configData.llmApiKey })
           });
         } else {
           res.writeHead(404);
