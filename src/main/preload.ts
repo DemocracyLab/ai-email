@@ -27,7 +27,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   testSheetsConnection: () => ipcRenderer.invoke('sheets:test'),
 
   // Secrets
-  getLLMApiKey: () => ipcRenderer.invoke('secrets:get-llm-key')
+  getLLMApiKey: () => ipcRenderer.invoke('secrets:get-llm-key'),
+
+  // Bulk Send
+  getBulkSendState: () => ipcRenderer.invoke('bulkSend:getState'),
+  setBulkSendState: (state: any) => ipcRenderer.invoke('bulkSend:setState', state),
+  getSentCountFromSheet: () => ipcRenderer.invoke('bulkSend:getSentCountFromSheet'),
+  getRemainingCount: () => ipcRenderer.invoke('bulkSend:getRemainingCount'),
 });
 
 console.log('[Preload] electronAPI exposed to renderer');

@@ -5,6 +5,7 @@ import Store from 'electron-store';
 import { setupGmailHandlers } from './gmail.js';
 import { setupSheetsHandlers } from './sheets.js';
 import { setupSecretsHandlers } from './secrets.js';
+import { setupBulkSendHandlers } from './bulkSend.js';
 import { fetchConfigFromScript } from './configFetcher.js';
 import { AppConfig } from '../shared/types.js';
 
@@ -187,3 +188,4 @@ ipcMain.handle('file:save', async (_event, filePath: string, content: string) =>
 setupGmailHandlers(ipcMain, store, mainWindow);
 setupSheetsHandlers(ipcMain, store);
 setupSecretsHandlers(ipcMain, store);
+setupBulkSendHandlers(ipcMain, store);

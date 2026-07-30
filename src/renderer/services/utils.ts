@@ -8,6 +8,7 @@ export function replaceVariables(
   return template
     .replace(/\{\{firstName\}\}/g, contact.firstName)
     .replace(/\{\{lastName\}\}/g, contact.lastName)
+    .replace(/\{\{email\}\}/g, contact.email)
     .replace(/\{\{user\.name\}\}/g, userName || '');
 }
 

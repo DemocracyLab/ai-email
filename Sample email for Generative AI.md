@@ -37,7 +37,7 @@ Second issue: https://mailchi.mp/democracylab/democracylab-impact-2-newsletter
 I have two things I'd like to ask:
 
 1. Reach out to david@democracylab.org with questions or just to say hello—I'll respond as quickly as possible
-2. Subscribe to our communications by visiting https://mailchi.mp/democracylab/subscribe to receive future "Impact" newsletters
+2. Subscribe to our communications by visiting [this link](https://democracylab.us3.list-manage.com/subscribe?u=72af92d0a817dcbf3aa960ee0&id=d3b4c4d81c&EMAIL={{email}}&FNAME={{firstName}}&LNAME={{lastName}} to receive future "Impact" newsletters).
 
 Thank you for considering this opportunity. We look forward to connecting with you!
 

@@ -38,6 +38,7 @@ export interface AppConfig {
     lastFilePath?: string;
     content?: string;
   };
+  bulkSend?: BulkSendState;
 }
 
 export interface EmailData {
@@ -48,6 +49,13 @@ export interface EmailData {
 }
 
 export type LLMProvider = 'gemini' | 'openai' | 'claude';
+
+export interface BulkSendState {
+  isActive: boolean;
+  maxPer24h: number;
+  nextSendAt: string | null;  // ISO timestamp; null when paused
+  sentLog: string[];          // ISO timestamps of sends within the last 24 h (pruned on read)
+}
 
 export interface LLMConfig {
   provider: LLMProvider;
