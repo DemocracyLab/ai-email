@@ -153,6 +153,29 @@ See [SECURITY.md](SECURITY.md) for detailed security architecture.
     - On Windows, enable **Developer Mode** in settings to allow symbolic links.
     - Run: `npm run electron:build`.
 
+## Creating a Release
+
+Releases are built and published automatically via GitHub Actions — no personal access token required.
+
+1. **Bump the version** in `package.json` (e.g. `1.0.9` → `1.0.10`).
+
+2. **Commit and push** the version change:
+   ```bash
+   git add package.json
+   git commit -m "chore: bump version to 1.0.10"
+   git push
+   ```
+
+3. **Push a version tag** — this triggers the release workflow:
+   ```bash
+   git tag v1.0.10
+   git push origin v1.0.10
+   ```
+
+4. **Wait for the Action to complete**: Go to the [Actions tab](https://github.com/DemocracyLab/ai-email/actions) and wait for the "Build and Release" workflow to finish. It builds installers for both Windows and macOS.
+
+5. **Mark the release as Latest**: Go to the [Releases page](https://github.com/DemocracyLab/ai-email/releases), find the newly created release, click **Edit**, check **Set as the latest release**, and save.
+
 ## Usage Guide (Email Workflow)
 
 ### 1. Configure Settings (Config Tab)
