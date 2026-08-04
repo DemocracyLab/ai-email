@@ -32,3 +32,8 @@ code {
 .ql-editor p:last-child {
   margin-bottom: 0;
 }
+
+.ql-editor ul,
+.ql-editor ol {
+  margin-bottom: 1em;
+}

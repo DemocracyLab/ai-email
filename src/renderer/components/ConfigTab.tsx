@@ -9,7 +9,7 @@ const ConfigTab: React.FC = () => {
   const [sheetUrl, setSheetUrl] = useState(config?.google?.sheetUrl || '');
   const [sheetName, setSheetName] = useState(config?.google?.sheetName || 'Sheet1');
   const [scriptUrl, setScriptUrl] = useState(config?.google?.scriptUrl || '');
-  const [llmProvider, setLlmProvider] = useState<'gemini' | 'openai'>(config?.llm.provider || 'gemini');
+  const [llmProvider, setLlmProvider] = useState<'gemini' | 'openai' | 'claude'>(config?.llm.provider || 'gemini');
   const [llmModel, setLlmModel] = useState(config?.llm.model || '');
   const [userStatus, setUserStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [googleStatus, setGoogleStatus] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
@@ -29,7 +29,7 @@ const ConfigTab: React.FC = () => {
       setSheetUrl(config.google?.sheetUrl || '');
       setSheetName(config.google?.sheetName || 'Sheet1');
       setScriptUrl(config.google?.scriptUrl || '');
-      setLlmProvider(config.llm.provider);
+      setLlmProvider(config.llm.provider as 'gemini' | 'openai' | 'claude');
       setLlmModel(config.llm.model);
       setAvailableModels(config.llm.availableModels || []);
       setIsGoogleConnected(!!config.google?.refreshToken);
@@ -279,19 +279,34 @@ const saveLLMConfig = async (overrideModel?: string, overrideProvider?: string, 
       
       // Fetch API key from Secret Manager
       const apiKey = await window.electronAPI.getLLMApiKey();
-      
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1/models?key=${apiKey}`
-      );
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch models');
+      let models: string[] = [];
+
+      if (llmProvider === 'claude') {
+        const response = await fetch('https://api.anthropic.com/v1/models', {
+          headers: {
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01'
+          }
+        });
+        if (!response.ok) {
+          throw new Error('Failed to fetch Claude models');
+        }
+        const data = await response.json();
+        models = (data.data as any[]).map((m: any) => m.id);
+      } else {
+        // Gemini
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1/models?key=${apiKey}`
+        );
+        if (!response.ok) {
+          throw new Error('Failed to fetch models');
+        }
+        const data = await response.json();
+        models = data.models
+          .filter((m: any) => m.supportedGenerationMethods?.includes('generateContent'))
+          .map((m: any) => m.name.replace('models/', ''));
       }
-
-      const data = await response.json();
-      const models = data.models
-        .filter((m: any) => m.supportedGenerationMethods?.includes('generateContent'))
-        .map((m: any) => m.name.replace('models/', ''));
       
       setAvailableModels(models);
       
@@ -616,7 +631,7 @@ const saveLLMConfig = async (overrideModel?: string, overrideProvider?: string, 
               <select
                 value={llmProvider}
                 onChange={(e) => {
-                  const newProvider = e.target.value as 'gemini' | 'openai';
+                  const newProvider = e.target.value as 'gemini' | 'openai' | 'claude';
                   setLlmProvider(newProvider);
                   // Clear model when switching providers
                   setLlmModel('');
@@ -628,6 +643,7 @@ const saveLLMConfig = async (overrideModel?: string, overrideProvider?: string, 
               >
                 <option value="gemini">Google Gemini</option>
                 <option value="openai">OpenAI GPT</option>
+                <option value="claude">Anthropic Claude</option>
               </select>
               <p className="text-xs text-gray-500 mt-1">
                 The LLM API key is centrally managed via Google Cloud Secret Manager
@@ -635,7 +651,7 @@ const saveLLMConfig = async (overrideModel?: string, overrideProvider?: string, 
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Model</label>
-              {llmProvider === 'gemini' ? (
+              {llmProvider === 'gemini' || llmProvider === 'claude' ? (
                 <div className="space-y-2">
                   <div className="flex gap-2">
                     <select
@@ -695,8 +711,10 @@ const saveLLMConfig = async (overrideModel?: string, overrideProvider?: string, 
                 />
               )}
               <p className="text-xs text-gray-500 mt-1">
-                {llmProvider === 'gemini' 
+                {llmProvider === 'gemini'
                   ? 'Select which Gemini model to use for generation'
+                  : llmProvider === 'claude'
+                  ? 'Select which Claude model to use for generation'
                   : 'Enter OpenAI model name (e.g., gpt-3.5-turbo, gpt-4)'}
               </p>
             </div>

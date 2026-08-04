@@ -4,7 +4,7 @@ import 'react-quill/dist/quill.snow.css';
 import { useApp } from '../context/AppContext';
 import { Contact } from '../../shared/types';
 import { generateEmail } from '../services/llm';
-import { replaceVariables } from '../services/utils';
+import { replaceVariables, markdownToHtml } from '../services/utils';
 
 const EmailTab: React.FC = () => {
   const { config } = useApp();
@@ -47,18 +47,7 @@ const EmailTab: React.FC = () => {
     const bodyText = lines.slice(1).join('\n').trim();
     
     setSubject(subjectLine);
-    
-    // Convert plain text to HTML paragraphs for ReactQuill
-    // Split by double newlines to get paragraphs
-    const paragraphs = bodyText.split(/\n\n+/).filter(p => p.trim());
-    
-    // Within each paragraph, convert single newlines to <br> tags for line breaks
-    const htmlParagraphs = paragraphs.map(p => {
-      const withBreaks = p.trim().replace(/\n/g, '<br>');
-      return `<p>${withBreaks}</p>`;
-    }).join('\n');
-    
-    setBody(htmlParagraphs);
+    setBody(markdownToHtml(bodyText));
   };
 
   const handleGenerate = async () => {

@@ -1,4 +1,9 @@
+import { marked } from 'marked';
 import { Contact } from '../../shared/types';
+
+export function markdownToHtml(text: string): string {
+  return marked.parse(text) as string;
+}
 
 export function replaceVariables(
   template: string,
@@ -8,6 +13,7 @@ export function replaceVariables(
   return template
     .replace(/\{\{firstName\}\}/g, contact.firstName)
     .replace(/\{\{lastName\}\}/g, contact.lastName)
+    .replace(/\{\{email\}\}/g, contact.email)
     .replace(/\{\{user\.name\}\}/g, userName || '');
 }
 

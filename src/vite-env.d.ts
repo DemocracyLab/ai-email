@@ -17,5 +17,9 @@ interface Window {
     updateContact: (contact: import('./shared/types').Contact) => Promise<boolean>;
     testSheetsConnection: () => Promise<{ success: boolean; error?: string }>;
     getLLMApiKey: () => Promise<string>;
+    getBulkSendState: () => Promise<import('./shared/types').BulkSendState | undefined>;
+    setBulkSendState: (state: import('./shared/types').BulkSendState) => Promise<boolean>;
+    getSentCountFromSheet: () => Promise<number>;
+    getRemainingCount: () => Promise<number>;
   };
 }

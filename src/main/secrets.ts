@@ -16,7 +16,8 @@ function getOAuth2Client(store: Store<AppConfig>) {
 }
 
 export function setupSecretsHandlers(ipcMain: IpcMain, store: Store<AppConfig>) {
-  // Get LLM API key from store (fetched previously from Apps Script)
+  // Get LLM API key from store (fetched previously from Apps Script).
+  // Resolves from apiKeyByProvider[provider] first, with legacy apiKey fallback.
   ipcMain.handle('secrets:get-llm-key', async () => {
     const config = store.store as AppConfig;
 
@@ -24,9 +25,13 @@ export function setupSecretsHandlers(ipcMain: IpcMain, store: Store<AppConfig>) 
       throw new Error('Not authenticated with Google. Please connect your Google account first.');
     }
 
-    const apiKey = config?.llm?.apiKey;
+    const provider = config?.llm?.provider;
+    const apiKey =
+      (provider && (config?.llm?.apiKeyByProvider as any)?.[provider]) ||
+      config?.llm?.apiKey;
+
     if (!apiKey) {
-      throw new Error('LLM API key not found in configuration. Please fetch config from the Script URL first.');
+      throw new Error(`LLM API key not found for provider "${provider}". Please fetch config from the Script URL first.`);
     }
 
     return apiKey;

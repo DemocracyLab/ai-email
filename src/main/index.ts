@@ -5,6 +5,7 @@ import Store from 'electron-store';
 import { setupGmailHandlers } from './gmail.js';
 import { setupSheetsHandlers } from './sheets.js';
 import { setupSecretsHandlers } from './secrets.js';
+import { setupBulkSendHandlers } from './bulkSend.js';
 import { fetchConfigFromScript } from './configFetcher.js';
 import { AppConfig } from '../shared/types.js';
 
@@ -72,6 +73,7 @@ const createWindow = () => {
             "https://www.googleapis.com " +
             "https://generativelanguage.googleapis.com " +
             "https://api.openai.com " +
+            "https://api.anthropic.com " +
             "https://sheets.googleapis.com " +
             "https://secretmanager.googleapis.com " +
             "https://gmail.googleapis.com;"
@@ -141,7 +143,13 @@ ipcMain.handle('config:fetch-from-script', async (_event, scriptUrl: string) => 
     store.set('google.clientId', result.clientId);
     store.set('google.clientSecret', result.clientSecret);
     store.set('google.scriptUrl', scriptUrl);
-    store.set('llm.apiKey', result.llmApiKey);
+
+    // Prefer per-provider key map; fall back to legacy single key
+    if (result.llmApiKeyByProvider) {
+      store.set('llm.apiKeyByProvider', result.llmApiKeyByProvider);
+    } else if (result.llmApiKey) {
+      store.set('llm.apiKey', result.llmApiKey);
+    }
     
     return store.store;
   } catch (error: any) {
@@ -180,3 +188,4 @@ ipcMain.handle('file:save', async (_event, filePath: string, content: string) =>
 setupGmailHandlers(ipcMain, store, mainWindow);
 setupSheetsHandlers(ipcMain, store);
 setupSecretsHandlers(ipcMain, store);
+setupBulkSendHandlers(ipcMain, store);
