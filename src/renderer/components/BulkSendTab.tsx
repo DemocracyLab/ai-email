@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
 import { useApp } from '../context/AppContext';
 import { Contact, BulkSendState } from '../../shared/types';
 import { generateEmail } from '../services/llm';
-import { replaceVariables } from '../services/utils';
+import { replaceVariables, markdownToHtml } from '../services/utils';
 
 interface LogEntry {
   timestamp: string;
@@ -160,11 +162,7 @@ const BulkSendTab: React.FC = () => {
       const lines = personalized.split('\n');
       const subject = lines[0].trim();
       const bodyText = lines.slice(1).join('\n').trim();
-      const htmlBody = bodyText
-        .split(/\n\n+/)
-        .filter(p => p.trim())
-        .map(p => `<p>${p.trim().replace(/\n/g, '<br>')}</p>`)
-        .join('\n');
+      const htmlBody = markdownToHtml(bodyText);
 
       setCurrentSubject(subject);
       setCurrentBody(htmlBody);
@@ -491,9 +489,12 @@ const BulkSendTab: React.FC = () => {
             </p>
           )}
           {currentBody && (
-            <div
-              className="text-sm text-gray-700 bg-gray-50 rounded p-3 max-h-48 overflow-y-auto border"
-              dangerouslySetInnerHTML={{ __html: currentBody }}
+            <ReactQuill
+              theme="snow"
+              value={currentBody}
+              readOnly
+              modules={{ toolbar: false }}
+              className="max-h-48 overflow-y-auto"
             />
           )}
         </div>

@@ -1,4 +1,9 @@
+import { marked } from 'marked';
 import { Contact } from '../../shared/types';
+
+export function markdownToHtml(text: string): string {
+  return marked.parse(text) as string;
+}
 
 export function replaceVariables(
   template: string,

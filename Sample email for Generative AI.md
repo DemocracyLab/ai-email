@@ -27,17 +27,18 @@ DemocracyLab Unveils the "Impact" Newsletter
 
 ## Email body:
 
-My name is David, and I volunteer with DemocracyLab. We reached out because you previously shared your contact information with us. If DemocracyLab isn't familiar to you, visit https://democracylab.org/ to learn more. We're dedicated to empowering technologists who champion the public good. Through our hackathons and volunteer platform, we connect tech for good organizations and projects with skilled professionals across UX, development, data science, and beyond.
+My name is _____, and I volunteer with DemocracyLab. We reached out because you previously shared your contact information with us. If DemocracyLab isn't familiar to you, visit [DemocracyLab.org](https://democracylab.org/) to learn more. We're dedicated to empowering technologists who champion the public good. Through our hackathons and volunteer platform, we connect tech for good organizations and projects with skilled professionals across UX, development, data science, and beyond.
 
 We're excited to announce our new monthly "Impact" newsletter, which highlights DemocracyLab's contributions to the tech for good community and explores partnership opportunities. With over 200 active projects relying on us for tech talent, your involvement matters. Explore our previous editions:
 
-First issue: https://mailchi.mp/democracylab/democracylab-impact-newsletter-issue-5856449
-Second issue: https://mailchi.mp/democracylab/democracylab-impact-2-newsletter
+* [First issue](https://mailchi.mp/democracylab/democracylab-impact-newsletter-issue-5856449)
+* [Second issue](https://mailchi.mp/democracylab/democracylab-impact-2-newsletter)
 
 I have two things I'd like to ask:
 
-1. Reach out to david@democracylab.org with questions or just to say hello—I'll respond as quickly as possible
-2. Subscribe to our communications by visiting [this link](https://democracylab.us3.list-manage.com/subscribe?u=72af92d0a817dcbf3aa960ee0&id=d3b4c4d81c&EMAIL={{email}}&FNAME={{firstName}}&LNAME={{lastName}} to receive future "Impact" newsletters).
+
+1. Subscribe to our communications by visiting [this link](https://democracylab.us3.list-manage.com/subscribe?u=72af92d0a817dcbf3aa960ee0&id=d3b4c4d81c&EMAIL={{email}}&FNAME={{firstName}}&LNAME={{lastName}}) to receive future "Impact" newsletters.
+2. Reply to this emails with questions or just to say hello—I'll respond as quickly as possible
 
 Thank you for considering this opportunity. We look forward to connecting with you!
 
