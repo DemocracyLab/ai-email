@@ -28,6 +28,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   checkBounceColumns: () => ipcRenderer.invoke('sheets:checkBounceColumns'),
   addBounceColumns: () => ipcRenderer.invoke('sheets:addBounceColumns'),
   processBounces: (bounces: any[]) => ipcRenderer.invoke('sheets:processBounces', bounces),
+  getTodayBounceCount: () => ipcRenderer.invoke('sheets:getTodayBounceCount'),
 
   // Secrets
   getLLMApiKey: () => ipcRenderer.invoke('secrets:get-llm-key'),

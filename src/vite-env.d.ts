@@ -16,10 +16,16 @@ interface Window {
     getContacts: () => Promise<import('./shared/types').Contact[]>;
     updateContact: (contact: import('./shared/types').Contact) => Promise<boolean>;
     testSheetsConnection: () => Promise<{ success: boolean; error?: string }>;
+    checkBounceColumns: () => Promise<{ exists: boolean; error?: string }>;
+    addBounceColumns: () => Promise<{ success: boolean; error?: string }>;
+    processBounces: (bounces: any[]) => Promise<{ success: boolean; updated: number; error?: string }>;
+    getTodayBounceCount: () => Promise<number>;
     getLLMApiKey: () => Promise<string>;
     getBulkSendState: () => Promise<import('./shared/types').BulkSendState | undefined>;
     setBulkSendState: (state: import('./shared/types').BulkSendState) => Promise<boolean>;
     getSentCountFromSheet: () => Promise<number>;
     getRemainingCount: () => Promise<number>;
+    validateDomain: (email: string) => Promise<{ valid: boolean; error?: string; mxRecords?: number }>;
+    checkBounces: (options?: { daysBack?: number; labelName?: string }) => Promise<{ success: boolean; bounces: any[]; error?: string }>;
   };
 }
