@@ -34,6 +34,8 @@ const BulkSendTab: React.FC = () => {
   const [remainingCount, setRemainingCount] = useState(0);
   const [sentLast24h, setSentLast24h] = useState(0);
   const [maxPer24h, setMaxPer24h] = useState(400);
+  const [maxBouncesPerDay, setMaxBouncesPerDay] = useState(3);
+  const [bouncesToday, setBouncesToday] = useState(0);
   const [isActive, setIsActive] = useState(false);
   const [nextSendAt, setNextSendAt] = useState<number | null>(null);
   const [countdown, setCountdown] = useState<number | null>(null);
@@ -58,6 +60,8 @@ const BulkSendTab: React.FC = () => {
   const nextSendAtRef = useRef<number | null>(null);
   const sentLogRef = useRef<string[]>([]);
   const maxPer24hRef = useRef(400);
+  const maxBouncesPerDayRef = useRef(3);
+  const bounceTimestampsRef = useRef<string[]>([]);
   const isBusyRef = useRef(false);
   const lastGeneratedTextRef = useRef<string | null>(null); // Store raw generated text before personalization
 
@@ -68,6 +72,7 @@ const BulkSendTab: React.FC = () => {
 
   // Persist current state to electron-store
   const saveState = useCallback(() => {
+    const today = new Date().toISOString().split('T')[0];
     const state: BulkSendState = {
       isActive: isActiveRef.current,
       maxPer24h: maxPer24hRef.current,
@@ -75,6 +80,12 @@ const BulkSendTab: React.FC = () => {
         ? new Date(nextSendAtRef.current).toISOString()
         : null,
       sentLog: sentLogRef.current,
+      bounceSettings: {
+        bounceHistoryDays: 7,
+        maxBouncesPerDay: maxBouncesPerDayRef.current,
+        bounceTimestamps: bounceTimestampsRef.current,
+        lastCheckDate: today,
+      },
     };
     window.electronAPI.setBulkSendState(state);
   }, []);
@@ -93,11 +104,33 @@ const BulkSendTab: React.FC = () => {
         maxPer24hRef.current = savedMax;
         setMaxPer24h(savedMax);
 
+        // Load bounce settings
+        const savedMaxBounces = state?.bounceSettings?.maxBouncesPerDay ?? 3;
+        maxBouncesPerDayRef.current = savedMaxBounces;
+        setMaxBouncesPerDay(savedMaxBounces);
+
         // Prune sent log to last 24 h
         const now = Date.now();
         const rawLog: string[] = state?.sentLog ?? [];
         const prunedLog = rawLog.filter(t => now - new Date(t).getTime() < DAY_MS);
         sentLogRef.current = prunedLog;
+
+        // Prune bounce timestamps to today only
+        const today = new Date().toISOString().split('T')[0];
+        const lastCheckDate = state?.bounceSettings?.lastCheckDate ?? today;
+        const rawBounces: string[] = state?.bounceSettings?.bounceTimestamps ?? [];
+        
+        console.log('[BulkSend Init] Today:', today);
+        console.log('[BulkSend Init] Last check date:', lastCheckDate);
+        console.log('[BulkSend Init] Raw bounce timestamps:', rawBounces);
+        
+        // Always load actual bounce count from spreadsheet as source of truth
+        const sheetBounceCount = await window.electronAPI.getTodayBounceCount();
+        console.log('[BulkSend Init] Sheet bounce count for today:', sheetBounceCount);
+        
+        // Initialize based on spreadsheet count only
+        setBouncesToday(sheetBounceCount);
+        bounceTimestampsRef.current = Array(sheetBounceCount).fill(new Date().toISOString());
 
         if (prunedLog.length > 0) {
           setSentLast24h(prunedLog.length);
@@ -109,11 +142,21 @@ const BulkSendTab: React.FC = () => {
 
         // Resume if bulk send was active when the app last closed
         if (state?.isActive && state?.nextSendAt && loadedContacts.length > 0) {
-          const scheduled = new Date(state.nextSendAt).getTime();
-          // 2 s grace period on startup to let the app fully initialize
-          const resumeAt = Math.max(scheduled, now + 2000);
-          setIsActiveSync(true);
-          setNextSendAtSync(resumeAt);
+          // Check if bounce limit already reached today - don't resume if so
+          const currentBounceCount = bounceTimestampsRef.current.length;
+          
+          if (currentBounceCount >= savedMaxBounces) {
+            setStatusMsg({
+              type: 'warning',
+              message: `Daily bounce limit of ${savedMaxBounces} already reached today (${currentBounceCount} bounces). Cannot resume until tomorrow.`,
+            });
+          } else {
+            const scheduled = new Date(state.nextSendAt).getTime();
+            // 2 s grace period on startup to let the app fully initialize
+            const resumeAt = Math.max(scheduled, now + 2000);
+            setIsActiveSync(true);
+            setNextSendAtSync(resumeAt);
+          }
         }
       } catch (err: any) {
         setStatusMsg({ type: 'error', message: `Initialization failed: ${err.message}` });
@@ -145,6 +188,55 @@ const BulkSendTab: React.FC = () => {
       }
       isBusyRef.current = false;
       return;
+    }
+
+    // Check daily bounce limit before sending
+    const currentBounceCount = bounceTimestampsRef.current.length;
+    
+    if (currentBounceCount >= maxBouncesPerDayRef.current) {
+      setIsActiveSync(false);
+      setNextSendAtSync(null);
+      saveState();
+      setStatusMsg({
+        type: 'warning',
+        message: `Daily bounce limit of ${maxBouncesPerDayRef.current} reached. Paused until tomorrow. (${currentBounceCount} bounces today)`,
+      });
+      isBusyRef.current = false;
+      return;
+    }
+
+    // Check for new bounces from Gmail (before each send)
+    try {
+      const bounceResult = await window.electronAPI.checkBounces({ daysBack: 1 });
+      if (bounceResult.success && bounceResult.bounces && bounceResult.bounces.length > 0) {
+        console.log(`[BulkSend] Found ${bounceResult.bounces.length} potential bounce(s)`);
+        
+        // Process bounces to update sheet
+        await window.electronAPI.processBounces(bounceResult.bounces);
+        
+        // Re-query the actual bounce count from the sheet to get accurate count
+        const sheetBounceCount = await window.electronAPI.getTodayBounceCount();
+        bounceTimestampsRef.current = Array(sheetBounceCount).fill(new Date().toISOString());
+        setBouncesToday(sheetBounceCount);
+        
+        console.log(`[BulkSend] Total bounces today from sheet: ${sheetBounceCount}`);
+        
+        // Check if we've now hit the bounce limit
+        if (sheetBounceCount >= maxBouncesPerDayRef.current) {
+          setIsActiveSync(false);
+          setNextSendAtSync(null);
+          saveState();
+          setStatusMsg({
+            type: 'warning',
+            message: `Daily bounce limit of ${maxBouncesPerDayRef.current} reached. Paused until tomorrow. (${sheetBounceCount} bounces today)`,
+          });
+          isBusyRef.current = false;
+          return;
+        }
+      }
+    } catch (bounceErr) {
+      console.warn('[BulkSend] Bounce check failed, continuing with send:', bounceErr);
+      // Don't stop sending if bounce check fails
     }
 
     const contact = contactList[0];
@@ -324,12 +416,16 @@ const BulkSendTab: React.FC = () => {
       setContactsSync(newContacts);
       setRemainingCount(newContacts.length);
 
+      // Note: Domain validation failures do NOT count toward bounce limit
+      // Only actual bounces (detected via Gmail API after send) should increment bounce counter
       if (wasDomainValidationFailure) {
         setStatusMsg({ 
           type: 'error', 
           message: `${err.message} for ${contact.firstName}. Skipped. Will reuse email for next contact.` 
         });
       } else {
+        // TODO: When Gmail API bounce detection is added to the send loop,
+        // check if this error is an actual bounce and increment bounceTimestampsRef if so
         setStatusMsg({ 
           type: 'error', 
           message: `Error for ${contact.firstName}: ${err.message}. Skipped.` 
@@ -403,6 +499,17 @@ const BulkSendTab: React.FC = () => {
       return;
     }
 
+    // Check bounce limit before starting
+    const currentBounceCount = bounceTimestampsRef.current.length;
+    
+    if (currentBounceCount >= maxBouncesPerDayRef.current) {
+      setStatusMsg({ 
+        type: 'error', 
+        message: `Cannot start: Daily bounce limit of ${maxBouncesPerDayRef.current} already reached (${currentBounceCount} bounces today). Try again tomorrow.` 
+      });
+      return;
+    }
+
     setIsActiveSync(true);
     setStatusMsg(null);
     // Fire the first send immediately — no countdown for the very first email
@@ -446,7 +553,7 @@ const BulkSendTab: React.FC = () => {
 
       {/* Controls */}
       <div className="bg-white rounded-lg p-4 shadow-sm border mb-6">
-        <div className="flex items-center gap-6 flex-wrap">
+        <div className="flex items-start gap-6 flex-wrap">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Max per 24 hours
@@ -465,6 +572,27 @@ const BulkSendTab: React.FC = () => {
               onBlur={saveState}
               className="w-28 border rounded px-3 py-1.5 text-sm disabled:bg-gray-100"
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Max bounces per day
+            </label>
+            <input
+              type="number"
+              min={1}
+              max={50}
+              value={maxBouncesPerDay}
+              disabled={isActive}
+              onChange={e => {
+                const v = Math.max(1, Number(e.target.value));
+                maxBouncesPerDayRef.current = v;
+                setMaxBouncesPerDay(v);
+              }}
+              onBlur={saveState}
+              className="w-28 border rounded px-3 py-1.5 text-sm disabled:bg-gray-100"
+            />
+            <p className="text-xs text-gray-500 mt-1">Today: {bouncesToday}</p>
           </div>
 
           <div>

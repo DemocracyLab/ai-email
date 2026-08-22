@@ -508,4 +508,69 @@ export function setupSheetsHandlers(ipcMain: IpcMain, store: Store<AppConfig>) {
       return { success: false, error: error.message, updated: 0 };
     }
   });
+
+  // Count bounces from today in the sheet
+  ipcMain.handle('sheets:getTodayBounceCount', async () => {
+    try {
+      const config = store.get('google');
+      if (!config?.refreshToken || !config?.sheetId) {
+        return 0;
+      }
+
+      const client = getOAuth2Client(store);
+      client.setCredentials({
+        refresh_token: config.refreshToken
+      });
+
+      const sheetName = config.sheetName || 'Sheet1';
+      
+      // Get all contacts from sheet
+      const response = await sheets.spreadsheets.values.get({
+        auth: client,
+        spreadsheetId: config.sheetId,
+        range: `${sheetName}!A:AZ`
+      });
+
+      const rows = response.data.values || [];
+      if (rows.length === 0) {
+        return 0;
+      }
+
+      const headers = rows[0].map((h: any) => h.toLowerCase().trim());
+      const bounceDateCol = headers.indexOf('bounce date');
+      const statusCol = headers.indexOf('status');
+
+      if (bounceDateCol < 0) {
+        console.log('[Sheets] Bounce Date column not found');
+        return 0;
+      }
+
+      const today = new Date().toISOString().split('T')[0];
+      let count = 0;
+
+      console.log('[Sheets] Looking for bounces dated:', today);
+      console.log('[Sheets] Total rows to check:', rows.length - 1);
+
+      // Count rows with bounce date matching today
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        const bounceDate = (row[bounceDateCol] || '').trim();
+        const status = statusCol >= 0 ? (row[statusCol] || '').trim() : '';
+        
+        if (bounceDate || status.includes('bounce')) {
+          console.log(`[Sheets] Row ${i}: Status = "${status}", Bounce Date = "${bounceDate}"`);
+          
+          if (bounceDate && bounceDate.startsWith(today)) {
+            count++;
+          }
+        }
+      }
+
+      console.log('[Sheets] Found', count, 'bounces dated today');
+      return count;
+    } catch (error: any) {
+      console.error('[Sheets] Error counting bounces:', error);
+      return 0;
+    }
+  });
 }
