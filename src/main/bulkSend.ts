@@ -2,6 +2,8 @@ import { IpcMain } from 'electron';
 import Store from 'electron-store';
 import { google } from 'googleapis';
 import { AppConfig, BulkSendState } from '../shared/types.js';
+import { validateEmailDomain } from './domainValidator.js';
+import { checkForBounces } from './bounceDetector.js';
 
 const sheets = google.sheets('v4');
 
@@ -43,7 +45,7 @@ export function setupBulkSendHandlers(ipcMain: IpcMain, store: Store<AppConfig>)
       const response = await sheets.spreadsheets.values.get({
         auth: client,
         spreadsheetId: config.google.sheetId,
-        range: `${sheetName}!A:Z`,
+        range: `${sheetName}!A:AZ`
       });
 
       const rows = response.data.values || [];
@@ -90,7 +92,7 @@ export function setupBulkSendHandlers(ipcMain: IpcMain, store: Store<AppConfig>)
       const response = await sheets.spreadsheets.values.get({
         auth: client,
         spreadsheetId: config.google.sheetId,
-        range: `${sheetName}!A:Z`,
+        range: `${sheetName}!A:AZ`,
       });
 
       const rows = response.data.values || [];
@@ -112,6 +114,54 @@ export function setupBulkSendHandlers(ipcMain: IpcMain, store: Store<AppConfig>)
     } catch (error: any) {
       console.error('[BulkSend] getRemainingCount error:', error);
       return 0;
+    }
+  });
+
+  // Validate email domain
+  ipcMain.handle('bulkSend:validateDomain', async (_event, email: string) => {
+    try {
+      const validation = await validateEmailDomain(email);
+      return validation;
+    } catch (error: any) {
+      console.error('[BulkSend] validateDomain error:', error);
+      return {
+        valid: false,
+        error: error.message,
+        errorType: 'domain-error-temporary'
+      };
+    }
+  });
+
+  // Check for bounces
+  ipcMain.handle('bulkSend:checkBounces', async (_event, options?: { daysBack?: number; labelName?: string }) => {
+    try {
+      const daysBack = options?.daysBack || 7;
+      const labelName = options?.labelName;
+      
+      const config = store.get('google');
+      if (!config?.refreshToken) {
+        throw new Error('Google account not connected');
+      }
+
+      const client = getOAuth2Client(store);
+      client.setCredentials({
+        refresh_token: config.refreshToken
+      });
+
+      // Calculate "since" date
+      const since = new Date();
+      since.setDate(since.getDate() - daysBack);
+
+      console.log('[BulkSend] Checking for bounces in last', daysBack, 'days');
+      if (labelName) {
+        console.log('[BulkSend] Searching in label:', labelName);
+      }
+      const bounces = await checkForBounces(client, since, labelName);
+      
+      return { success: true, bounces };
+    } catch (error: any) {
+      console.error('[BulkSend] checkBounces error:', error);
+      return { success: false, error: error.message, bounces: [] };
     }
   });
 }

@@ -4,6 +4,7 @@ import { google } from 'googleapis';
 import { AppConfig, EmailData } from '../shared/types.js';
 import http from 'http';
 import { parse } from 'url';
+import { validateEmailDomain } from './domainValidator.js';
 
 const gmail = google.gmail('v1');
 let oauthServer: http.Server | null = null;
@@ -203,6 +204,22 @@ export function setupGmailHandlers(ipcMain: IpcMain, store: Store<AppConfig>, ma
       if (!config.google?.refreshToken) {
         throw new Error('Gmail not authorized. Please connect your Google account.');
       }
+
+      // Validate email domain before sending
+      console.log(`[Gmail] Validating domain for: ${emailData.to}`);
+      const validation = await validateEmailDomain(emailData.to);
+      
+      if (!validation.valid) {
+        console.error(`[Gmail] Domain validation failed for ${emailData.to}:`, validation.error);
+        return {
+          success: false,
+          error: validation.error,
+          errorType: validation.errorType,
+          domainValidationFailed: true
+        };
+      }
+      
+      console.log(`[Gmail] ✓ Domain valid for ${emailData.to} (${validation.mxRecords} MX records)`);
 
       const client = getOAuth2Client(store);
       client.setCredentials({

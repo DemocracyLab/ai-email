@@ -15,6 +15,7 @@ const EmailTab: React.FC = () => {
   const [generatedTemplate, setGeneratedTemplate] = useState<string>(''); // Store template before personalization
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [isCheckingBounces, setIsCheckingBounces] = useState(false);
   const [status, setStatus] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
 
   useEffect(() => {
@@ -107,7 +108,11 @@ const EmailTab: React.FC = () => {
       if (result.success) {
         setStatus({ type: 'success', message: 'Test email sent to your inbox!' });
       } else {
-        setStatus({ type: 'error', message: `Failed to send test: ${result.error}` });
+        if (result.domainValidationFailed) {
+          setStatus({ type: 'error', message: `Domain validation failed: ${result.error}` });
+        } else {
+          setStatus({ type: 'error', message: `Failed to send test: ${result.error}` });
+        }
       }
     } catch (error: any) {
       setStatus({ type: 'error', message: error.message });
@@ -155,7 +160,33 @@ const EmailTab: React.FC = () => {
           }
         }
       } else {
-        setStatus({ type: 'error', message: `Failed to send: ${result.error}` });
+        // Check if this was a domain validation failure
+        if (result.domainValidationFailed && result.errorType) {
+          // Update contact with domain error status
+          const updatedContact = {
+            ...contact,
+            status: result.errorType,
+            dateSent: new Date().toISOString()
+          };
+          
+          await window.electronAPI.updateContact(updatedContact);
+          
+          setStatus({ 
+            type: 'error', 
+            message: `Domain validation failed: ${result.error}. Contact marked as ${result.errorType}.` 
+          });
+          
+          // Remove from list
+          const newContacts = contacts.filter((_, i) => i !== currentIndex);
+          setContacts(newContacts);
+          
+          if (newContacts.length > 0) {
+            const nextIndex = Math.min(currentIndex, newContacts.length - 1);
+            setCurrentIndex(nextIndex);
+          }
+        } else {
+          setStatus({ type: 'error', message: `Failed to send: ${result.error}` });
+        }
       }
     } catch (error: any) {
       setStatus({ type: 'error', message: error.message });
@@ -195,6 +226,45 @@ const EmailTab: React.FC = () => {
       }
     } catch (error: any) {
       setStatus({ type: 'error', message: error.message });
+    }
+  };
+
+  const handleCheckBounces = async () => {
+    setIsCheckingBounces(true);
+    setStatus({ type: 'info', message: 'Checking for bounced emails...' });
+
+    try {
+      // Check for bounces in last 7 days
+      const result = await window.electronAPI.checkBounces({ daysBack: 7 });
+
+      if (!result.success) {
+        setStatus({ type: 'error', message: `Failed to check bounces: ${result.error}` });
+        return;
+      }
+
+      if (result.bounces.length === 0) {
+        setStatus({ type: 'success', message: 'No bounced emails found in the last 7 days.' });
+        return;
+      }
+
+      // Process bounces - update sheet
+      const processResult = await window.electronAPI.processBounces(result.bounces);
+
+      if (processResult.success) {
+        setStatus({ 
+          type: 'success', 
+          message: `Found ${result.bounces.length} bounce(s). Updated ${processResult.updated} contact(s) in sheet.` 
+        });
+
+        // Reload contacts to reflect bounce status changes
+        await loadContacts();
+      } else {
+        setStatus({ type: 'error', message: `Failed to process bounces: ${processResult.error}` });
+      }
+    } catch (error: any) {
+      setStatus({ type: 'error', message: `Error checking bounces: ${error.message}` });
+    } finally {
+      setIsCheckingBounces(false);
     }
   };
 
@@ -323,7 +393,7 @@ const EmailTab: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex gap-2">
+      <div className="flex gap-2 items-center">
         <button
           onClick={handleSendTest}
           disabled={!body || isSending}
@@ -344,6 +414,17 @@ const EmailTab: React.FC = () => {
           className="px-6 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700 disabled:opacity-50"
         >
           Skip
+        </button>
+        
+        <div className="border-l border-gray-300 h-8 mx-2"></div>
+        
+        <button
+          onClick={handleCheckBounces}
+          disabled={isCheckingBounces}
+          className="px-6 py-2 bg-orange-600 text-white rounded hover:bg-orange-700 disabled:opacity-50"
+          title="Check Gmail for bounced emails from the last 7 days"
+        >
+          {isCheckingBounces ? 'Checking...' : '🔍 Check Bounces'}
         </button>
       </div>
     </div>

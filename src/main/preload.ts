@@ -25,6 +25,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getContacts: () => ipcRenderer.invoke('sheets:getContacts'),
   updateContact: (contact: any) => ipcRenderer.invoke('sheets:updateContact', contact),
   testSheetsConnection: () => ipcRenderer.invoke('sheets:test'),
+  checkBounceColumns: () => ipcRenderer.invoke('sheets:checkBounceColumns'),
+  addBounceColumns: () => ipcRenderer.invoke('sheets:addBounceColumns'),
+  processBounces: (bounces: any[]) => ipcRenderer.invoke('sheets:processBounces', bounces),
 
   // Secrets
   getLLMApiKey: () => ipcRenderer.invoke('secrets:get-llm-key'),
@@ -34,6 +37,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setBulkSendState: (state: any) => ipcRenderer.invoke('bulkSend:setState', state),
   getSentCountFromSheet: () => ipcRenderer.invoke('bulkSend:getSentCountFromSheet'),
   getRemainingCount: () => ipcRenderer.invoke('bulkSend:getRemainingCount'),
+  validateDomain: (email: string) => ipcRenderer.invoke('bulkSend:validateDomain', email),
+  checkBounces: (options?: { daysBack?: number; labelName?: string }) => ipcRenderer.invoke('bulkSend:checkBounces', options),
 });
 
 console.log('[Preload] electronAPI exposed to renderer');

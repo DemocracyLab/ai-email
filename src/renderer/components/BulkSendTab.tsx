@@ -59,6 +59,7 @@ const BulkSendTab: React.FC = () => {
   const sentLogRef = useRef<string[]>([]);
   const maxPer24hRef = useRef(400);
   const isBusyRef = useRef(false);
+  const lastGeneratedTextRef = useRef<string | null>(null); // Store raw generated text before personalization
 
   // Helpers that update both state and ref atomically
   const setContactsSync = (c: Contact[]) => { contactsRef.current = c; setContacts(c); };
@@ -152,21 +153,38 @@ const BulkSendTab: React.FC = () => {
     setCurrentBody('');
 
     try {
-      // 1. Generate email
-      setIsGenerating(true);
-      setStatusMsg({ type: 'info', message: `Generating email for ${contact.firstName}…` });
+      let subject: string;
+      let htmlBody: string;
+      let generatedText: string;
 
-      const generatedText = await generateEmail(cfg!.context.content!, cfg!.llm);
+      // 1. Generate or reuse email
+      if (lastGeneratedTextRef.current) {
+        // Reuse previous generated text (from domain validation failure)
+        console.log('[BulkSend] Reusing previously generated email text');
+        generatedText = lastGeneratedTextRef.current;
+        setStatusMsg({ type: 'info', message: `Using saved email for ${contact.firstName}…` });
+      } else {
+        // Generate new email
+        setIsGenerating(true);
+        setStatusMsg({ type: 'info', message: `Generating email for ${contact.firstName}…` });
+
+        generatedText = await generateEmail(cfg!.context.content!, cfg!.llm);
+        
+        // Store raw generated text in case we need to reuse it
+        lastGeneratedTextRef.current = generatedText;
+        
+        setIsGenerating(false);
+      }
+
+      // Personalize for current contact
       const personalized = replaceVariables(generatedText, contact, cfg?.user.name ?? '');
-
       const lines = personalized.split('\n');
-      const subject = lines[0].trim();
+      subject = lines[0].trim();
       const bodyText = lines.slice(1).join('\n').trim();
-      const htmlBody = markdownToHtml(bodyText);
+      htmlBody = markdownToHtml(bodyText);
 
       setCurrentSubject(subject);
       setCurrentBody(htmlBody);
-      setIsGenerating(false);
 
       // 2. Send (with one retry on failure)
       setIsSending(true);
@@ -187,9 +205,21 @@ const BulkSendTab: React.FC = () => {
         });
       }
 
+      // Check if this was a domain validation failure (no email sent)
+      if (!result.success && (result as any).domainValidationFailed) {
+        // Domain validation failed - no email sent, keep generated text for next contact
+        console.log('[BulkSend] Domain validation failed, will reuse text for next contact');
+        throw new Error(result.error ?? 'Domain validation failed');
+      }
+
       if (!result.success) {
+        // Other send error - clear generated text
+        lastGeneratedTextRef.current = null;
         throw new Error(result.error ?? 'Send failed after retry');
       }
+
+      // Email sent successfully - clear stored text
+      lastGeneratedTextRef.current = null;
 
       // 3. Update sheet
       const sheetOk = await window.electronAPI.updateContact({
@@ -269,6 +299,8 @@ const BulkSendTab: React.FC = () => {
       setIsGenerating(false);
       setIsSending(false);
 
+      const wasDomainValidationFailure = lastGeneratedTextRef.current !== null;
+
       setStatusLog(prev => [
         {
           timestamp: new Date().toLocaleTimeString(),
@@ -292,14 +324,33 @@ const BulkSendTab: React.FC = () => {
       setContactsSync(newContacts);
       setRemainingCount(newContacts.length);
 
-      setStatusMsg({ type: 'error', message: `Error for ${contact.firstName}: ${err.message}. Skipped.` });
+      if (wasDomainValidationFailure) {
+        setStatusMsg({ 
+          type: 'error', 
+          message: `${err.message} for ${contact.firstName}. Skipped. Will reuse email for next contact.` 
+        });
+      } else {
+        setStatusMsg({ 
+          type: 'error', 
+          message: `Error for ${contact.firstName}: ${err.message}. Skipped.` 
+        });
+      }
 
       if (isActiveRef.current && newContacts.length > 0) {
-        const base = computeBaseInterval(maxPer24hRef.current);
-        const jitter = Math.floor(Math.random() * 31);
-        const next = Date.now() + (base + jitter) * 1000;
-        setNextSendAtSync(next);
-        saveState();
+        if (wasDomainValidationFailure) {
+          // Domain validation failed - no email was sent, so immediately try next contact
+          console.log('[BulkSend] Domain validation failed, sending next email immediately');
+          const next = Date.now(); // Immediate send
+          setNextSendAtSync(next);
+          saveState();
+        } else {
+          // Other error - use normal interval
+          const base = computeBaseInterval(maxPer24hRef.current);
+          const jitter = Math.floor(Math.random() * 31);
+          const next = Date.now() + (base + jitter) * 1000;
+          setNextSendAtSync(next);
+          saveState();
+        }
       } else {
         setIsActiveSync(false);
         setNextSendAtSync(null);

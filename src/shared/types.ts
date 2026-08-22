@@ -3,9 +3,21 @@ export interface Contact {
   firstName: string;
   lastName: string;
   teamMember?: string;
-  status?: 'sent' | 'skipped' | 'error';
+  status?: 
+    | 'sent' 
+    | 'skipped' 
+    | 'error'
+    | 'domain-error-timeout'
+    | 'domain-error-no-mx'
+    | 'domain-error-nonexistent'
+    | 'domain-error-temporary'
+    | 'hard-bounce'
+    | 'soft-bounce'
+    | 'block-bounce';
   dateSent?: string;
   messageId?: string;
+  bounceDate?: string;
+  bounceReason?: string;
   rowIndex: number;
 }
 
@@ -55,6 +67,14 @@ export interface BulkSendState {
   maxPer24h: number;
   nextSendAt: string | null;  // ISO timestamp; null when paused
   sentLog: string[];          // ISO timestamps of sends within the last 24 h (pruned on read)
+  bounceSettings?: BounceSettings;
+}
+
+export interface BounceSettings {
+  bounceHistoryDays: number;          // Default 7
+  maxBouncesPerDay: number;           // Default 3
+  bounceTimestamps: string[];         // ISO timestamps of today's bounces
+  lastCheckDate: string;              // ISO date for daily reset
 }
 
 export interface LLMConfig {
