@@ -14,6 +14,8 @@ function AppContent() {
   const initialTabSet = useRef(false);
   const [showBounceModal, setShowBounceModal] = useState(false);
   const [isAddingBounceColumns, setIsAddingBounceColumns] = useState(false);
+  const [showLabelInputModal, setShowLabelInputModal] = useState(false);
+  const [labelInput, setLabelInput] = useState('');
   const bounceCheckDone = useRef(false);
 
   // Check for required bounce columns on startup
@@ -56,7 +58,6 @@ function AppContent() {
       console.log('[App] ✓ Bounce columns added');
 
       // Step 2: Ask about checking other Gmail labels/folders
-      let labelName: string | undefined;
       const checkOtherLabel = confirm(
         'Bounce columns added successfully!\n\n' +
         'Now checking for historical bounces from the last 60 days.\n\n' +
@@ -66,16 +67,24 @@ function AppContent() {
       );
 
       if (checkOtherLabel) {
-        const input = prompt(
-          'Enter the Gmail label name to check (e.g., "Bounces", "Spam", "Archive"):\n\n' +
-          'Leave blank to check only the main inbox.'
-        );
-        if (input && input.trim()) {
-          labelName = input.trim();
-        }
+        // Show modal for label input instead of prompt()
+        setShowLabelInputModal(true);
+        setIsAddingBounceColumns(false);
+        return;
       }
 
       // Step 3: Check for bounces from last 60 days
+      await checkBouncesAndProcess(undefined);
+    } catch (error: any) {
+      console.error('[App] Error in bounce setup:', error);
+      alert(`Error during bounce setup: ${error.message}`);
+    } finally {
+      setIsAddingBounceColumns(false);
+    }
+  };
+
+  const checkBouncesAndProcess = async (labelName: string | undefined) => {
+    try {
       console.log('[App] Checking for bounces from last 60 days...');
       const bounceResult = await (window as any).electronAPI.checkBounces({ 
         daysBack: 60, 
@@ -116,11 +125,23 @@ function AppContent() {
         setShowBounceModal(false);
       }
     } catch (error: any) {
-      console.error('[App] Error in bounce setup:', error);
-      alert(`Error during bounce setup: ${error.message}`);
-    } finally {
-      setIsAddingBounceColumns(false);
+      console.error('[App] Error in bounce check:', error);
+      alert(`Error during bounce check: ${error.message}`);
     }
+  };
+
+  const handleLabelInputSubmit = async () => {
+    const labelName = labelInput.trim() || undefined;
+    setShowLabelInputModal(false);
+    setLabelInput('');
+    await checkBouncesAndProcess(labelName);
+  };
+
+  const handleLabelInputCancel = async () => {
+    setShowLabelInputModal(false);
+    setLabelInput('');
+    // Check without label
+    await checkBouncesAndProcess(undefined);
   };
 
   const handleDeclineBounceColumns = () => {
@@ -235,6 +256,48 @@ function AppContent() {
                 disabled={isAddingBounceColumns}
               >
                 {isAddingBounceColumns ? 'Adding...' : 'Add Columns'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Gmail Label Input Modal */}
+      {showLabelInputModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md mx-4">
+            <h2 className="text-xl font-bold mb-4">Check Gmail Label/Folder</h2>
+            <p className="mb-4 text-gray-700">
+              Enter the Gmail label name to check for bounces (e.g., "Bounces", "Spam", "Archive").
+            </p>
+            <p className="mb-4 text-gray-700 text-sm">
+              Leave blank to check only the main inbox.
+            </p>
+            <input
+              type="text"
+              value={labelInput}
+              onChange={(e) => setLabelInput(e.target.value)}
+              placeholder="Label name (optional)"
+              className="w-full px-3 py-2 border border-gray-300 rounded mb-6 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              onKeyPress={(e) => {
+                if (e.key === 'Enter') {
+                  handleLabelInputSubmit();
+                }
+              }}
+              autoFocus
+            />
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={handleLabelInputCancel}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+              >
+                Skip
+              </button>
+              <button
+                onClick={handleLabelInputSubmit}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              >
+                Check Label
               </button>
             </div>
           </div>
