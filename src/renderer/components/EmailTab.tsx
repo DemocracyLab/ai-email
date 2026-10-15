@@ -162,11 +162,12 @@ const EmailTab: React.FC = () => {
       } else {
         // Check if this was a domain validation failure
         if (result.domainValidationFailed && result.errorType) {
-          // Update contact with domain error status
+          // Leave the contact retryable and preserve the specific DNS failure.
           const updatedContact = {
             ...contact,
-            status: result.errorType,
-            dateSent: new Date().toISOString()
+            status: result.errorType ?? 'domain-error-temporary',
+            dateSent: new Date().toISOString(),
+            error: `${result.errorType}: ${result.error ?? 'Domain validation failed'}`
           };
           
           await window.electronAPI.updateContact(updatedContact);
@@ -185,10 +186,26 @@ const EmailTab: React.FC = () => {
             setCurrentIndex(nextIndex);
           }
         } else {
+          await window.electronAPI.updateContact({
+            ...contact,
+              status: result.errorType ?? 'gmail-error-uncertain',
+            dateSent: new Date().toISOString(),
+            error: result.error ?? 'Gmail send failed'
+          });
           setStatus({ type: 'error', message: `Failed to send: ${result.error}` });
         }
       }
     } catch (error: any) {
+      try {
+        await window.electronAPI.updateContact({
+          ...contact,
+          status: 'gmail-error-uncertain',
+          dateSent: new Date().toISOString(),
+          error: error.message ?? 'Gmail send failed'
+        });
+      } catch (updateError) {
+        console.error('Failed to record send error:', updateError);
+      }
       setStatus({ type: 'error', message: error.message });
     } finally {
       setIsSending(false);

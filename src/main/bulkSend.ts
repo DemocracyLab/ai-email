@@ -1,7 +1,8 @@
 import { IpcMain } from 'electron';
 import Store from 'electron-store';
 import { google } from 'googleapis';
-import { AppConfig, BulkSendState } from '../shared/types.js';
+import { AppConfig, BulkSendState, Contact } from '../shared/types.js';
+import { canSendContact } from './contactEligibility.js';
 import { validateEmailDomain } from './domainValidator.js';
 import { checkForBounces } from './bounceDetector.js';
 
@@ -107,7 +108,7 @@ export function setupBulkSendHandlers(ipcMain: IpcMain, store: Store<AppConfig>)
         const row = rows[i];
         const teamMember = teamMemberCol >= 0 ? row[teamMemberCol] : '';
         const status = statusCol >= 0 ? row[statusCol] : '';
-        if (!teamMember && status !== 'sent') count++;
+        if (canSendContact(status as Contact['status'], teamMember)) count++;
       }
 
       return count;

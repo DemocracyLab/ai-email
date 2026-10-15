@@ -215,6 +215,7 @@ export function setupGmailHandlers(ipcMain: IpcMain, store: Store<AppConfig>, ma
           success: false,
           error: validation.error,
           errorType: validation.errorType,
+          retryable: validation.errorType === 'domain-error-timeout' || validation.errorType === 'domain-error-temporary',
           domainValidationFailed: true
         };
       }
@@ -275,8 +276,45 @@ export function setupGmailHandlers(ipcMain: IpcMain, store: Store<AppConfig>, ma
       console.error('Gmail send error:', error);
       return {
         success: false,
-        error: error.message
+        ...getSendErrorDetails(error)
       };
     }
   });
+}
+
+function getSendErrorDetails(error: any): {
+  error: string;
+  errorType: 'gmail-error-temporary' | 'gmail-error-permanent' | 'gmail-error-uncertain';
+  retryable: boolean;
+} {
+  const response = error.response;
+  const apiError = response?.data?.error;
+  const status = response?.status ?? error.status;
+  const reasons: string[] = Array.isArray(apiError?.errors)
+    ? apiError.errors.map((item: any) => item.reason).filter(Boolean)
+    : [];
+  const reason = reasons.join(', ');
+  const message = apiError?.message || error.message || 'Unknown Gmail API error';
+  const code = typeof error.code === 'string' ? error.code : undefined;
+
+  if (!status) {
+    return {
+      error: `Gmail send request failed without an HTTP response${code ? ` (${code})` : ''}; delivery may be uncertain: ${message}`,
+      errorType: 'gmail-error-uncertain',
+      retryable: false
+    };
+  }
+
+  const retryable = status === 408 || status === 429 || status >= 500 ||
+    reasons.some(reasonCode =>
+      reasonCode === 'rateLimitExceeded' ||
+      reasonCode === 'userRateLimitExceeded' ||
+      reasonCode === 'backendError'
+    );
+
+  return {
+    error: `Gmail API send failed (HTTP ${status}${reason ? `, ${reason}` : ''}): ${message}`,
+    errorType: retryable ? 'gmail-error-temporary' : 'gmail-error-permanent',
+    retryable
+  };
 }

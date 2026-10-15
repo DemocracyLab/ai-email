@@ -177,7 +177,7 @@ const BulkSendTab: React.FC = () => {
     isBusyRef.current = true;
 
     const cfg = configRef.current;
-    const contactList = contactsRef.current;
+    let contactList = contactsRef.current;
 
     if (!contactList.length || !isActiveRef.current) {
       if (!contactList.length) {
@@ -212,7 +212,23 @@ const BulkSendTab: React.FC = () => {
         console.log(`[BulkSend] Found ${bounceResult.bounces.length} potential bounce(s)`);
         
         // Process bounces to update sheet
-        await window.electronAPI.processBounces(bounceResult.bounces);
+        const processResult = await window.electronAPI.processBounces(bounceResult.bounces);
+        if (!processResult.success) {
+          throw new Error(processResult.error ?? 'Could not record detected bounces');
+        }
+
+        contactList = await window.electronAPI.getContacts();
+        setContactsSync(contactList);
+        setRemainingCount(contactList.length);
+
+        if (!contactList.length) {
+          setIsActiveSync(false);
+          setNextSendAtSync(null);
+          saveState();
+          setStatusMsg({ type: 'success', message: 'All emails sent!' });
+          isBusyRef.current = false;
+          return;
+        }
         
         // Re-query the actual bounce count from the sheet to get accurate count
         const sheetBounceCount = await window.electronAPI.getTodayBounceCount();
@@ -235,11 +251,20 @@ const BulkSendTab: React.FC = () => {
         }
       }
     } catch (bounceErr) {
-      console.warn('[BulkSend] Bounce check failed, continuing with send:', bounceErr);
-      // Don't stop sending if bounce check fails
+      console.warn('[BulkSend] Bounce check failed; pausing send:', bounceErr);
+      setIsActiveSync(false);
+      setNextSendAtSync(null);
+      saveState();
+      setStatusMsg({
+        type: 'warning',
+        message: 'Bounce check failed. Sending is paused to avoid retrying a bounced address.',
+      });
+      isBusyRef.current = false;
+      return;
     }
 
     const contact = contactList[0];
+    let failureStatus: Contact['status'] = 'error';
     setCurrentContact(contact);
     setCurrentSubject('');
     setCurrentBody('');
@@ -288,7 +313,7 @@ const BulkSendTab: React.FC = () => {
         body: htmlBody,
       });
 
-      if (!result.success) {
+      if (!result.success && result.retryable) {
         await new Promise<void>(r => setTimeout(r, 5000));
         result = await window.electronAPI.sendEmail({
           to: contact.email,
@@ -299,12 +324,14 @@ const BulkSendTab: React.FC = () => {
 
       // Check if this was a domain validation failure (no email sent)
       if (!result.success && (result as any).domainValidationFailed) {
+        failureStatus = result.errorType ?? 'domain-error-temporary';
         // Domain validation failed - no email sent, keep generated text for next contact
         console.log('[BulkSend] Domain validation failed, will reuse text for next contact');
         throw new Error(result.error ?? 'Domain validation failed');
       }
 
       if (!result.success) {
+        failureStatus = result.errorType ?? 'gmail-error-uncertain';
         // Other send error - clear generated text
         lastGeneratedTextRef.current = null;
         throw new Error(result.error ?? 'Send failed after retry');
@@ -407,8 +434,9 @@ const BulkSendTab: React.FC = () => {
       try {
         await window.electronAPI.updateContact({
           ...contact,
-          status: 'error' as const,
+          status: failureStatus,
           dateSent: new Date().toISOString(),
+          error: err.message,
         });
       } catch { /* best effort */ }
 
