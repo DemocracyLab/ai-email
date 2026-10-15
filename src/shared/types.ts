@@ -11,11 +11,15 @@ export interface Contact {
     | 'domain-error-no-mx'
     | 'domain-error-nonexistent'
     | 'domain-error-temporary'
+    | 'gmail-error-temporary'
+    | 'gmail-error-permanent'
+    | 'gmail-error-uncertain'
     | 'hard-bounce'
     | 'soft-bounce'
     | 'block-bounce';
   dateSent?: string;
   messageId?: string;
+  error?: string;
   bounceDate?: string;
   bounceReason?: string;
   rowIndex: number;

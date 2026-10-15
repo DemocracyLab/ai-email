@@ -2,6 +2,7 @@ import { IpcMain } from 'electron';
 import Store from 'electron-store';
 import { google } from 'googleapis';
 import { AppConfig, Contact } from '../shared/types.js';
+import { canSendContact, isRetryableContactStatus } from './contactEligibility.js';
 
 const sheets = google.sheets('v4');
 
@@ -122,8 +123,7 @@ export function setupSheetsHandlers(ipcMain: IpcMain, store: Store<AppConfig>) {
         const teamMember = teamMemberCol >= 0 ? row[teamMemberCol] : '';
         const status = statusCol >= 0 ? row[statusCol] : '';
 
-        // Only include unsent contacts
-        if (!teamMember && status !== 'sent') {
+        if (canSendContact(status as Contact['status'], teamMember)) {
           contacts.push({
             email: row[emailCol] || '',
             firstName: firstNameCol >= 0 ? row[firstNameCol] : '',
@@ -171,17 +171,54 @@ export function setupSheetsHandlers(ipcMain: IpcMain, store: Store<AppConfig>) {
       const statusCol = headers.findIndex((h: any) => h.toLowerCase().trim() === 'status');
       const dateSentCol = headers.findIndex((h: any) => h.toLowerCase().trim() === 'date sent');
       const messageIdCol = headers.findIndex((h: any) => h.toLowerCase().trim() === 'gmail message id');
+      let errorCol = headers.findIndex((h: any) => h.toLowerCase().trim() === 'error');
       const bounceDateCol = headers.findIndex((h: any) => h.toLowerCase().trim() === 'bounce date');
       const bounceReasonCol = headers.findIndex((h: any) => h.toLowerCase().trim() === 'bounce reason');
 
       const updates: any[] = [];
 
-      // Update Team Member column
+      if (errorCol < 0) {
+        const spreadsheetResponse = await sheets.spreadsheets.get({
+          auth: client,
+          spreadsheetId: config.google.sheetId,
+          fields: 'sheets(properties(sheetId,title,gridProperties(columnCount)))'
+        });
+        const targetSheet = spreadsheetResponse.data.sheets?.find(
+          sheet => sheet.properties?.title === sheetName
+        );
+        const sheetId = targetSheet?.properties?.sheetId;
+        if (!targetSheet || sheetId === undefined) {
+          throw new Error(`Could not find sheet tab: ${sheetName}`);
+        }
+
+        errorCol = targetSheet.properties?.gridProperties?.columnCount ?? headers.length;
+        await sheets.spreadsheets.batchUpdate({
+          auth: client,
+          spreadsheetId: config.google.sheetId,
+          requestBody: {
+            requests: [{
+              appendDimension: {
+                sheetId,
+                dimension: 'COLUMNS',
+                length: 1
+              }
+            }]
+          }
+        });
+
+        const col = columnIndexToLetter(errorCol);
+        updates.push({
+          range: `${sheetName}!${col}1`,
+          values: [['Error']]
+        });
+      }
+
+      // Error rows must remain eligible for retry, including rows previously marked done.
       if (teamMemberCol >= 0) {
         const col = columnIndexToLetter(teamMemberCol);
         updates.push({
           range: `${sheetName}!${col}${contact.rowIndex}`,
-          values: [[config.user.name]]
+          values: [[isRetryableContactStatus(contact.status) ? '' : config.user.name]]
         });
       }
 
@@ -209,6 +246,15 @@ export function setupSheetsHandlers(ipcMain: IpcMain, store: Store<AppConfig>) {
         updates.push({
           range: `${sheetName}!${col}${contact.rowIndex}`,
           values: [[contact.messageId || '']]
+        });
+      }
+
+      // Update Error column when the sheet provides one; clear it on success.
+      if (errorCol >= 0) {
+        const col = columnIndexToLetter(errorCol);
+        updates.push({
+          range: `${sheetName}!${col}${contact.rowIndex}`,
+          values: [[contact.error || '']]
         });
       }
 

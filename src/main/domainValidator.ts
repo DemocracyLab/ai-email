@@ -2,7 +2,13 @@ import { promises as dns } from 'dns';
 
 // In-memory cache for domain validation results
 // Key: domain, Value: { valid: boolean, timestamp: number, mxRecords?: number }
-const domainCache = new Map<string, { valid: boolean; timestamp: number; mxRecords?: number; error?: string }>();
+const domainCache = new Map<string, {
+  valid: boolean;
+  timestamp: number;
+  mxRecords?: number;
+  error?: string;
+  errorType?: DomainErrorType;
+}>();
 
 // Cache TTL: 1 hour
 const CACHE_TTL = 3600000; // milliseconds
@@ -50,7 +56,7 @@ export async function validateEmailDomain(email: string): Promise<DomainValidati
     return {
       valid: cached.valid,
       error: cached.error,
-      errorType: cached.error ? getErrorType(cached.error) : undefined,
+      errorType: cached.errorType,
       mxRecords: cached.mxRecords
     };
   }
@@ -89,7 +95,8 @@ export async function validateEmailDomain(email: string): Promise<DomainValidati
       domainCache.set(domain, {
         valid: false,
         timestamp: Date.now(),
-        error
+        error,
+        errorType: 'domain-error-no-mx'
       });
       
       console.log(`[DomainValidator] ✗ ${domain}: ${error}`);
@@ -102,12 +109,17 @@ export async function validateEmailDomain(email: string): Promise<DomainValidati
     let errorType: DomainErrorType;
     let errorMessage: string;
     
-    if (error.code === 'ENOTFOUND' || error.code === 'ENODATA') {
+    const errorCode = typeof error.code === 'string' ? error.code : undefined;
+    const originalMessage = typeof error.message === 'string' ? error.message : 'Unknown DNS error';
+    if (errorCode === 'ENOTFOUND') {
       errorType = 'domain-error-nonexistent';
-      errorMessage = 'Domain does not exist';
-    } else if (error.code === 'ETIMEOUT' || error.message.includes('timeout')) {
+      errorMessage = `Domain does not exist (${errorCode}: ${originalMessage})`;
+    } else if (errorCode === 'ENODATA') {
+      errorType = 'domain-error-no-mx';
+      errorMessage = `No MX records found (${errorCode}: ${originalMessage})`;
+    } else if (errorCode === 'ETIMEOUT' || errorCode === 'DNS_TIMEOUT' || originalMessage.toLowerCase().includes('timeout')) {
       errorType = 'domain-error-timeout';
-      errorMessage = 'DNS lookup timeout';
+      errorMessage = `DNS lookup timeout${errorCode ? ` (${errorCode})` : ''}: ${originalMessage}`;
     } else {
       // Temporary DNS failure - retry once
       console.log(`[DomainValidator] Retrying ${domain}...`);
@@ -133,7 +145,7 @@ export async function validateEmailDomain(email: string): Promise<DomainValidati
       }
       
       errorType = 'domain-error-temporary';
-      errorMessage = 'Temporary DNS failure';
+      errorMessage = `Temporary DNS failure${errorCode ? ` (${errorCode})` : ''}: ${originalMessage}`;
     }
     
     const result = {
@@ -141,13 +153,15 @@ export async function validateEmailDomain(email: string): Promise<DomainValidati
       error: errorMessage,
       errorType
     };
-    
-    // Cache the failure (but with shorter TTL via timestamp)
-    domainCache.set(domain, {
-      valid: false,
-      timestamp: Date.now(),
-      error: errorMessage
-    });
+
+    if (errorType === 'domain-error-nonexistent' || errorType === 'domain-error-no-mx') {
+      domainCache.set(domain, {
+        valid: false,
+        timestamp: Date.now(),
+        error: errorMessage,
+        errorType
+      });
+    }
     
     return result;
   }
@@ -156,28 +170,16 @@ export async function validateEmailDomain(email: string): Promise<DomainValidati
 /**
  * Resolve MX records with timeout
  */
-async function resolveMxWithTimeout(domain: string, timeoutMs: number): Promise<dns.MxRecord[]> {
+async function resolveMxWithTimeout(
+  domain: string,
+  timeoutMs: number
+): Promise<Awaited<ReturnType<typeof dns.resolveMx>>> {
   return Promise.race([
     dns.resolveMx(domain),
     new Promise<never>((_, reject) => 
       setTimeout(() => reject(new Error('DNS lookup timeout')), timeoutMs)
     )
   ]);
-}
-
-/**
- * Get error type from error message (for cached results)
- */
-function getErrorType(errorMessage: string): DomainErrorType {
-  if (errorMessage.includes('timeout')) {
-    return 'domain-error-timeout';
-  } else if (errorMessage.includes('No MX records')) {
-    return 'domain-error-no-mx';
-  } else if (errorMessage.includes('does not exist')) {
-    return 'domain-error-nonexistent';
-  } else {
-    return 'domain-error-temporary';
-  }
 }
 
 /**

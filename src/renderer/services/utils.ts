@@ -10,11 +10,26 @@ export function replaceVariables(
   contact: Contact,
   userName?: string
 ): string {
-  return template
-    .replace(/\{\{firstName\}\}/g, contact.firstName)
-    .replace(/\{\{lastName\}\}/g, contact.lastName)
-    .replace(/\{\{email\}\}/g, contact.email)
-    .replace(/\{\{user\.name\}\}/g, userName || '');
+  const first = (contact.firstName ?? '').trim();
+  const last = (contact.lastName ?? '').trim();
+  const email = (contact.email ?? '').trim();
+  const fill = (text: string, encode: boolean): string => {
+    const format = encode ? encodeURIComponent : (value: string) => value;
+    return text
+      .replace(/\{\{firstName\}\}/g, () => format(first))
+      .replace(/\{\{lastName\}\}/g, () => format(last))
+      .replace(/\{\{email\}\}/g, () => format(email));
+  };
+
+  let output = template
+    .replace(/(\]\()([^\s)]*)(\))/g, (_match, prefix, url, suffix) => prefix + fill(url, true) + suffix)
+    .replace(/(href=["'])([^"']*)(["'])/g, (_match, prefix, url, suffix) => prefix + fill(url, true) + suffix);
+
+  if (!first) {
+    output = output.split('\n').filter(line => !/\{\{firstName\}\}/.test(line)).join('\n');
+  }
+
+  return fill(output, false).replace(/\{\{user\.name\}\}/g, userName || '');
 }
 
 export function validateEmail(email: string): boolean {

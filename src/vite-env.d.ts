@@ -11,7 +11,14 @@ interface Window {
     saveFile: (path: string, content: string) => Promise<boolean>;
     authorizeGmail: () => Promise<{ success: boolean; error?: string }>;
     saveGmailTokens: (code: string) => Promise<boolean>;
-    sendEmail: (emailData: import('./shared/types').EmailData) => Promise<{ success: boolean; messageId?: string; error?: string }>;
+    sendEmail: (emailData: import('./shared/types').EmailData) => Promise<{
+      success: boolean;
+      messageId?: string;
+      error?: string;
+      errorType?: import('./shared/types').Contact['status'];
+      domainValidationFailed?: boolean;
+      retryable?: boolean;
+    }>;
     testGmailConnection: () => Promise<boolean>;
     getContacts: () => Promise<import('./shared/types').Contact[]>;
     updateContact: (contact: import('./shared/types').Contact) => Promise<boolean>;
